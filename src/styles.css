@@ -1,116 +1,176 @@
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
 
-.logo.typescript:hover {
-  filter: drop-shadow(0 0 2em #2d79c7);
-}
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
+  font-family: Inter, system-ui, sans-serif;
+  color: #e5e7eb;
+  background: #111318;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
 }
 
-.container {
+* {
+  box-sizing: border-box;
+}
+
+body {
   margin: 0;
-  padding-top: 10vh;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+.topbar {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 32px;
+  border-bottom: 1px solid #30343d;
+  background: #191c23;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
+.eyebrow {
+  margin: 0 0 6px;
+  color: #8b9cfb;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
 }
 
 h1 {
-  text-align: center;
+  margin: 0;
+  font-size: 24px;
 }
 
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+h2 {
+  margin: 0;
+  font-size: 17px;
 }
 
-button {
+.status, .muted {
+  color: #a0a6b5;
+  font-size: 13px;
+}
+
+.status.success {
+  color: #8fdbad;
+}
+
+main {
+  padding: 28px 32px;
+}
+
+.panel {
+  max-width: 900px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #30343d;
+  border-radius: 12px;
+  background: #191c23;
+}
+
+.panel-heading {
+  padding: 20px;
+  border-bottom: 1px solid #30343d;
+}
+
+.panel-heading p {
+  margin-bottom: 0;
+}
+
+.tree {
+  padding: 16px 20px 24px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+}
+
+.directory > summary {
+  padding: 6px 4px;
+  border-radius: 5px;
   cursor: pointer;
+  list-style-position: inside;
 }
 
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
+.directory > summary:hover,
+.file:hover {
+  background: #272b35;
 }
 
-input,
-button {
-  outline: none;
+.children {
+  margin-left: 17px;
+  padding-left: 12px;
+  border-left: 1px solid #343945;
 }
 
-#greet-input {
-  margin-right: 5px;
+.file {
+  padding: 6px 4px;
+  border-radius: 5px;
+  overflow-wrap: anywhere;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
 
-  a:hover {
-    color: #24c8db;
-  }
+/* Repository controls */
+.repo-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
 
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
+/* Reusable button base */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 9px 14px;
+  border: 1px solid #30343d;
+  border-radius: 6px;
+
+  background: #191c23;
+  color: #e6e8ef;
+
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.button:hover {
+  background: #272b35;
+  border-color: #555c6b;
+}
+
+.button:focus-visible {
+  outline: 2px solid #8b9cfb;
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary action */
+.button-primary {
+  background: #8b9cfb;
+  border-color: #8b9cfb;
+  color: #111318;
+  font-weight: 600;
+}
+
+.button-primary:hover {
+  background: #a5b1ff;
+  border-color: #a5b1ff;
+}
+
+/* Selected repository path */
+.repo-path {
+  color: #a1a6b3;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
