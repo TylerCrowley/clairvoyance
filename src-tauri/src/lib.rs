@@ -7,6 +7,7 @@ fn greet(name: &str) -> String {
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+use git2::Repository;
 
 #[derive(Serialize)]
 struct TreeEntry {
@@ -51,7 +52,6 @@ fn build_tree(dir: &Path, root: &Path) -> Result<TreeEntry, String> {
         });
     }
 
-    // Show directories first, then sort alphabetically.
     children.sort_by(|a, b| {
         b.is_dir
             .cmp(&a.is_dir)
@@ -80,10 +80,11 @@ fn build_tree(dir: &Path, root: &Path) -> Result<TreeEntry, String> {
 
 #[tauri::command]
 fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
-    let root = PathBuf::from(path);
-    if !root.is_dir() {
-        return Err("Selected path is not a directory".to_string());
-    }
+    let repo = Repository::open(&path)
+        .map_err(|_| "The selected folder is not a valid Git repository.".to_string())?;
+    let root = repo
+        .workdir()
+        .ok_or_else(|| "Empty repositories are not supported.".to_string())?;
     build_tree(&root, &root)
 }
 

@@ -75,6 +75,8 @@ selectButton?.addEventListener("click", async () => {
 
     repoName.textContent = root.name || "Repository";
     treeContainer.replaceChildren(renderEntry(root));
+    status.textContent = "Repository loaded";
+    status.classList.add("success");
 
     const repoPath = document.querySelector<HTMLSpanElement>("#repo-path");
     if (repoPath) {
@@ -85,10 +87,8 @@ selectButton?.addEventListener("click", async () => {
     status.textContent = "Repository loaded";
     status.classList.add("success");
   } catch (error) {
-    status.textContent = "Failed to load";
-    treeContainer.textContent =
-      `Could not read repository: ${String(error)}`;
-
+    status.textContent = "Unable to open repository";
+    treeContainer.textContent = String(error);
     console.error("Failed to load repository:", error);
   }
 });
