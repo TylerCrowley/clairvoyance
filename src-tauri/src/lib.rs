@@ -4,10 +4,10 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+use git2::Repository;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use git2::Repository;
 
 #[derive(Serialize)]
 struct TreeEntry {

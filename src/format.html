@@ -1,0 +1,33 @@
+<header class="topbar">
+    <div>
+        <p class="eyebrow">CLAIRVOYANCE</p>
+        <h1>Repository Explorer</h1>
+    </div>
+    <div class="repo-controls">
+        <button id="select-repo" class="button button-primary">
+            <span>+</span>
+            Open Repository
+        </button>
+        <button id="refresh-repo" class="button" disabled>
+            Refresh
+        </button>
+        <span id="repo-path" class="repo-path">
+            No repository selected
+        </span>
+    </div>
+    <span id="status" class="status">No repository selected</span>
+</header>
+
+<main>
+    <section class="panel">
+        <div class="panel-heading">
+            <div>
+                <h2 id="repo-name">No repository open</h2>
+                <p class="muted">Files and directories</p>
+            </div>
+        </div>
+        <div id="tree" class="tree">
+            <p class="muted">Open a repository to explore its files.</p>
+        </div>
+    </section>
+</main>
