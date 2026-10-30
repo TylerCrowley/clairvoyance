@@ -7,75 +7,106 @@ fn greet(name: &str) -> String {
 use git2::Repository;
 use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 #[derive(Serialize)]
 struct TreeEntry {
     name: String,
     path: String,
     is_dir: bool,
+    unreadable: bool,
     children: Vec<TreeEntry>,
 }
 
-fn build_tree(dir: &Path, root: &Path) -> Result<TreeEntry, String> {
-    let mut children = Vec::new();
+fn build_tree(path: &Path) -> TreeEntry {
+    let mut entries = Vec::new();
 
-    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().into_owned();
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Repository root".to_string());
 
-        // Skip generated or internal directories.
-        if path.is_dir() && matches!(name.as_str(), ".git" | "node_modules" | "target" | "dist") {
+    let read_dir = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error) => {
+            eprintln!(
+                "Could not read directory {}: {}",
+                path.display(),
+                error
+            );
+
+            return TreeEntry {
+                name,
+                path: path.to_string_lossy().into_owned(),
+                is_dir: true,
+                unreadable: true,
+                children: entries,
+            };
+        }
+    };
+
+    for entry in read_dir {
+    let entry = match entry {
+        Ok(entry) => entry,
+        Err(error) => {
+            eprintln!("Could not read directory entry: {}", error);
             continue;
         }
+    };
 
-        let is_dir = path.is_dir();
+    let name = entry.file_name().to_string_lossy().into_owned();
 
-        let nested = if is_dir {
-            Some(build_tree(&path, root)?)
-        } else {
-            None
-        };
-
-        let relative_path = path
-            .strip_prefix(root)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
-
-        children.push(TreeEntry {
-            name,
-            path: relative_path,
-            is_dir,
-            children: nested.map(|node| node.children).unwrap_or_default(),
-        });
+    if name.starts_with('.') {
+        continue;
     }
 
-    children.sort_by(|a, b| {
-        b.is_dir
-            .cmp(&a.is_dir)
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-    });
+    let entry_path = entry.path();
 
-    let name = dir
-        .file_name()
-        .unwrap_or(dir.as_os_str())
-        .to_string_lossy()
-        .into_owned();
+    let metadata = match fs::symlink_metadata(&entry_path) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            eprintln!(
+                "Could not read metadata for {}: {}",
+                entry_path.display(),
+                error
+            );
+            continue;
+        }
+    };
 
-    let relative_path = dir
-        .strip_prefix(root)
-        .unwrap_or(dir)
-        .to_string_lossy()
-        .replace('\\', "/");
+    let is_dir = metadata.is_dir() && !metadata.file_type().is_symlink();
 
-    Ok(TreeEntry {
+    let (children, unreadable) = if is_dir {
+        let child_tree = build_tree(&entry_path);
+        let unreadable = child_tree.unreadable;
+
+        (child_tree.children, unreadable)
+    } else {
+        (Vec::new(), false)
+    };
+
+    entries.push(TreeEntry {
         name,
-        path: relative_path,
-        is_dir: true,
+        path: entry_path.to_string_lossy().into_owned(),
+        is_dir,
+        unreadable,
         children,
-    })
+    });
+}
+
+    entries.sort_by(|a, b| {
+    b.is_dir
+        .cmp(&a.is_dir)
+        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+});
+
+    TreeEntry {
+        name,
+        path: path.to_string_lossy().into_owned(),
+        is_dir: true,
+        unreadable: false,
+        children: entries,
+    }
 }
 
 #[tauri::command]
@@ -85,7 +116,7 @@ fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
     let root = repo
         .workdir()
         .ok_or_else(|| "Empty repositories are not supported.".to_string())?;
-    build_tree(&root, &root)
+    Ok(build_tree(&root))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

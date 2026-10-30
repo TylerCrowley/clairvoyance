@@ -7,6 +7,7 @@ interface TreeEntry {
   name: string;
   path: string;
   is_dir: boolean;
+  unreadable: boolean;
   children: TreeEntry[];
 }
 
@@ -72,32 +73,6 @@ selectButton?.addEventListener("click", async () => {
   }
 
   await loadRepository(selected);
-
-  try {
-    status.textContent = "Loading repository…";
-    status.classList.remove("success");
-
-    const root = await invoke<TreeEntry>("get_repository_tree", { path: selected, });
-
-    repoName.textContent = root.name || "Repository";
-    treeContainer.replaceChildren(renderEntry(root));
-    status.textContent = "Repository loaded";
-    status.classList.add("success");
-
-    const repoPath = document.querySelector<HTMLSpanElement>("#repo-path");
-    if (repoPath) {
-      repoPath.textContent = selected;
-      repoPath.title = selected;
-    }
-
-    status.textContent = "Repository loaded";
-    status.classList.add("success");
-  } catch (error) {
-    status.textContent = "Unable to open repository";
-    treeContainer.textContent = String(error);
-    console.error("Failed to load repository:", error);
-
-  }
 });
 
 refreshButton?.addEventListener("click", async () => {
@@ -106,15 +81,22 @@ refreshButton?.addEventListener("click", async () => {
   }
 });
 
-function renderEntry(entry: TreeEntry): HTMLElement {
+function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
   if (entry.is_dir) {
     const details = document.createElement("details");
     details.className = "directory";
-    details.open = entry.path === "";
+    details.open = isRoot && !entry.unreadable;
 
     const summary = document.createElement("summary");
-    summary.textContent = `📁 ${entry.name || "Repository root"}`;
-    summary.title = entry.path || ".";
+
+    if (entry.unreadable) {
+      summary.textContent = `🔒 ${entry.name} (Access denied)`;
+      summary.classList.add("unreadable");
+      summary.title = `Cannot access: ${entry.path}`;
+    } else {
+      summary.textContent = `📁 ${entry.name || "Repository root"}`;
+      summary.title = entry.path || ".";
+    }
 
     const children = document.createElement("div");
     children.className = "children";
@@ -131,6 +113,7 @@ function renderEntry(entry: TreeEntry): HTMLElement {
   file.className = "file";
   file.textContent = `📄 ${entry.name}`;
   file.title = entry.path;
+
   return file;
 }
 
@@ -144,11 +127,10 @@ async function loadRepository(path: string) {
       { path }
     );
 
-    treeContainer.replaceChildren(renderEntry(root));
-
-
     repoName.textContent = root.name || "Repository";
     currentRepoPath = path;
+
+    treeContainer.replaceChildren(renderEntry(root, true));
 
     const repoPath =
       document.querySelector<HTMLSpanElement>("#repo-path");
