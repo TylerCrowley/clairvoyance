@@ -1,7 +1,8 @@
-
 import { invoke } from "@tauri-apps/api/core";
 import "./styles.css";
 import { open } from "@tauri-apps/plugin-dialog";
+// Switched from emojis to lucide, so that can be recolored or altered in the future
+import { createIcons, Folder, File, Lock } from "lucide";
 
 interface TreeEntry {
   name: string;
@@ -17,6 +18,7 @@ if (!app) {
   throw new Error("Could not find the app container");
 }
 
+// Main HTML code for the interface
 app.innerHTML = `
   <header class="topbar">
       <div>
@@ -53,6 +55,7 @@ app.innerHTML = `
   </main>
 `;
 
+// Variable declearation
 const treeContainer = document.querySelector<HTMLDivElement>("#tree")!;
 const status = document.querySelector<HTMLSpanElement>("#status")!;
 const repoName = document.querySelector<HTMLHeadingElement>("#repo-name")!;
@@ -61,6 +64,7 @@ const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-repo")
 
 let currentRepoPath: string | null = null;
 
+// The button to open the system dialog and select a folder
 selectButton?.addEventListener("click", async () => {
   const selected = await open({
     directory: true,
@@ -75,12 +79,14 @@ selectButton?.addEventListener("click", async () => {
   await loadRepository(selected);
 });
 
+// The button to refresh the file tree, in case anything is moved or deleted
 refreshButton?.addEventListener("click", async () => {
   if (currentRepoPath) {
     await loadRepository(currentRepoPath);
   }
 });
 
+// Recursively renders the file tree
 function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
   if (entry.is_dir) {
     const details = document.createElement("details");
@@ -89,13 +95,26 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
 
     const summary = document.createElement("summary");
 
+    const icon = document.createElement("i");
+    icon.setAttribute(
+      "data-lucide",
+      entry.unreadable ? "lock" : "folder"
+    );
+    icon.className = "tree-icon";
+
+    summary.appendChild(icon);
+
+    const label = document.createTextNode(
+      entry.unreadable
+        ? ` ${entry.name} (Access denied)`
+        : ` ${entry.name || "Repository root"}`
+    );
+
+    summary.appendChild(label);
+    summary.title = entry.path || ".";
+
     if (entry.unreadable) {
-      summary.textContent = `🔒 ${entry.name} (Access denied)`;
       summary.classList.add("unreadable");
-      summary.title = `Cannot access: ${entry.path}`;
-    } else {
-      summary.textContent = `📁 ${entry.name || "Repository root"}`;
-      summary.title = entry.path || ".";
     }
 
     const children = document.createElement("div");
@@ -111,12 +130,19 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
 
   const file = document.createElement("div");
   file.className = "file";
-  file.textContent = `📄 ${entry.name}`;
+
+  const icon = document.createElement("i");
+  icon.setAttribute("data-lucide", "file");
+  icon.className = "tree-icon";
+
+  file.appendChild(icon);
+  file.appendChild(document.createTextNode(` ${entry.name}`));
   file.title = entry.path;
 
   return file;
 }
 
+// Loads the selected repository into the interface
 async function loadRepository(path: string) {
   status.textContent = "Refreshing repository…";
   status.classList.remove("success");
@@ -131,6 +157,13 @@ async function loadRepository(path: string) {
     currentRepoPath = path;
 
     treeContainer.replaceChildren(renderEntry(root, true));
+    createIcons({
+      icons: {
+        Folder,
+        File,
+        Lock,
+      },
+    });
 
     const repoPath =
       document.querySelector<HTMLSpanElement>("#repo-path");

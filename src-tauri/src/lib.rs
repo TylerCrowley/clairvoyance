@@ -1,15 +1,11 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
+// Rust libraries
 use git2::Repository;
 use serde::Serialize;
 use std::fs;
-use std::path::{Path};
+use std::path::Path;
 
 #[derive(Serialize)]
+// Data structure for each entry in the file tree
 struct TreeEntry {
     name: String,
     path: String,
@@ -18,6 +14,7 @@ struct TreeEntry {
     children: Vec<TreeEntry>,
 }
 
+// Reads the files and creates the file tree structure
 fn build_tree(path: &Path) -> TreeEntry {
     let mut entries = Vec::new();
 
@@ -29,11 +26,7 @@ fn build_tree(path: &Path) -> TreeEntry {
     let read_dir = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(error) => {
-            eprintln!(
-                "Could not read directory {}: {}",
-                path.display(),
-                error
-            );
+            eprintln!("Could not read directory {}: {}", path.display(), error);
 
             return TreeEntry {
                 name,
@@ -46,59 +39,60 @@ fn build_tree(path: &Path) -> TreeEntry {
     };
 
     for entry in read_dir {
-    let entry = match entry {
-        Ok(entry) => entry,
-        Err(error) => {
-            eprintln!("Could not read directory entry: {}", error);
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                eprintln!("Could not read directory entry: {}", error);
+                continue;
+            }
+        };
+
+        let name = entry.file_name().to_string_lossy().into_owned();
+
+        // Ignores hidden files
+        if name.starts_with('.') {
             continue;
         }
-    };
 
-    let name = entry.file_name().to_string_lossy().into_owned();
+        let entry_path = entry.path();
 
-    if name.starts_with('.') {
-        continue;
+        let metadata = match fs::symlink_metadata(&entry_path) {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                eprintln!(
+                    "Could not read metadata for {}: {}",
+                    entry_path.display(),
+                    error
+                );
+                continue;
+            }
+        };
+
+        let is_dir = metadata.is_dir() && !metadata.file_type().is_symlink();
+
+        let (children, unreadable) = if is_dir {
+            let child_tree = build_tree(&entry_path);
+            let unreadable = child_tree.unreadable;
+
+            (child_tree.children, unreadable)
+        } else {
+            (Vec::new(), false)
+        };
+
+        entries.push(TreeEntry {
+            name,
+            path: entry_path.to_string_lossy().into_owned(),
+            is_dir,
+            unreadable,
+            children,
+        });
     }
 
-    let entry_path = entry.path();
-
-    let metadata = match fs::symlink_metadata(&entry_path) {
-        Ok(metadata) => metadata,
-        Err(error) => {
-            eprintln!(
-                "Could not read metadata for {}: {}",
-                entry_path.display(),
-                error
-            );
-            continue;
-        }
-    };
-
-    let is_dir = metadata.is_dir() && !metadata.file_type().is_symlink();
-
-    let (children, unreadable) = if is_dir {
-        let child_tree = build_tree(&entry_path);
-        let unreadable = child_tree.unreadable;
-
-        (child_tree.children, unreadable)
-    } else {
-        (Vec::new(), false)
-    };
-
-    entries.push(TreeEntry {
-        name,
-        path: entry_path.to_string_lossy().into_owned(),
-        is_dir,
-        unreadable,
-        children,
-    });
-}
-
     entries.sort_by(|a, b| {
-    b.is_dir
-        .cmp(&a.is_dir)
-        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-});
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
 
     TreeEntry {
         name,
@@ -110,6 +104,7 @@ fn build_tree(path: &Path) -> TreeEntry {
 }
 
 #[tauri::command]
+// Ensures the selected folder is actually a repository
 fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
     let repo = Repository::open(&path)
         .map_err(|_| "The selected folder is not a valid Git repository.".to_string())?;
@@ -125,7 +120,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![greet])
         .invoke_handler(tauri::generate_handler![get_repository_tree])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

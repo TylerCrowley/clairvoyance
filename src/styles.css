@@ -1,4 +1,3 @@
-
 :root {
   font-family: Inter, system-ui, sans-serif;
   color: #e5e7eb;
@@ -106,7 +105,6 @@ main {
   border-radius: 5px;
   overflow-wrap: anywhere;
 }
-
 
 .repo-controls {
   display: flex;
