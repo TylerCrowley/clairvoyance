@@ -9,6 +9,7 @@ interface TreeEntry {
   path: string;
   is_dir: boolean;
   unreadable: boolean;
+  status: string | null;
   children: TreeEntry[];
 }
 
@@ -111,6 +112,10 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
     );
 
     summary.appendChild(label);
+    const indicator = createStatusIndicator(entry.status);
+    if (indicator) {
+      summary.appendChild(indicator);
+    }
     summary.title = entry.path || ".";
 
     if (entry.unreadable) {
@@ -137,9 +142,32 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
 
   file.appendChild(icon);
   file.appendChild(document.createTextNode(` ${entry.name}`));
+  const indicator = createStatusIndicator(entry.status);
+
+  if (indicator) {
+    file.appendChild(indicator);
+  }
+
   file.title = entry.path;
 
   return file;
+}
+
+function findStatuses(entry: TreeEntry): object[] {
+  const results: object[] = [];
+
+  if (entry.status) {
+    results.push({
+      name: entry.name,
+      status: entry.status,
+    });
+  }
+
+  for (const child of entry.children) {
+    results.push(...findStatuses(child));
+  }
+
+  return results;
 }
 
 // Loads the selected repository into the interface
@@ -188,4 +216,25 @@ async function loadRepository(path: string) {
     }
     treeContainer.textContent = String(error);
   }
+}
+
+function createStatusIndicator(status: string | null): HTMLElement | null {
+  if (!status) return null;
+
+  const indicator = document.createElement("span");
+  indicator.className = `git-status git-status-${status}`;
+
+  const labels: Record<string, string> = {
+    modified: "M",
+    added: "A",
+    untracked: "U",
+    deleted: "D",
+    renamed: "R",
+    conflicted: "!",
+  };
+
+  indicator.textContent = labels[status] ?? "?";
+  indicator.title = status;
+
+  return indicator;
 }

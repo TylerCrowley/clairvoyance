@@ -1,6 +1,7 @@
 // Rust libraries
-use git2::Repository;
+use git2::{Repository, Status, StatusOptions};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -11,11 +12,12 @@ struct TreeEntry {
     path: String,
     is_dir: bool,
     unreadable: bool,
+    status: Option<String>,
     children: Vec<TreeEntry>,
 }
 
 // Reads the files and creates the file tree structure
-fn build_tree(path: &Path) -> TreeEntry {
+fn build_tree(path: &Path, repo_root: &Path, statuses: &HashMap<String, String>) -> TreeEntry {
     let mut entries = Vec::new();
 
     let name = path
@@ -33,6 +35,7 @@ fn build_tree(path: &Path) -> TreeEntry {
                 path: path.to_string_lossy().into_owned(),
                 is_dir: true,
                 unreadable: true,
+                status: None,
                 children: entries,
             };
         }
@@ -56,6 +59,15 @@ fn build_tree(path: &Path) -> TreeEntry {
 
         let entry_path = entry.path();
 
+        let relative_path = entry_path
+            .strip_prefix(repo_root)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        let status = statuses.get(&relative_path).cloned();
+        if let Some(status) = &status {
+}
+
         let metadata = match fs::symlink_metadata(&entry_path) {
             Ok(metadata) => metadata,
             Err(error) => {
@@ -71,7 +83,7 @@ fn build_tree(path: &Path) -> TreeEntry {
         let is_dir = metadata.is_dir() && !metadata.file_type().is_symlink();
 
         let (children, unreadable) = if is_dir {
-            let child_tree = build_tree(&entry_path);
+            let child_tree = build_tree(&entry_path, repo_root, statuses);
             let unreadable = child_tree.unreadable;
 
             (child_tree.children, unreadable)
@@ -84,6 +96,7 @@ fn build_tree(path: &Path) -> TreeEntry {
             path: entry_path.to_string_lossy().into_owned(),
             is_dir,
             unreadable,
+            status,
             children,
         });
     }
@@ -99,19 +112,67 @@ fn build_tree(path: &Path) -> TreeEntry {
         path: path.to_string_lossy().into_owned(),
         is_dir: true,
         unreadable: false,
+        status: None,
         children: entries,
     }
 }
 
 #[tauri::command]
-// Ensures the selected folder is actually a repository
 fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
     let repo = Repository::open(&path)
         .map_err(|_| "The selected folder is not a valid Git repository.".to_string())?;
+
     let root = repo
         .workdir()
         .ok_or_else(|| "Empty repositories are not supported.".to_string())?;
-    Ok(build_tree(&root))
+
+    let statuses = get_repository_statuses(&repo)?;
+
+    Ok(build_tree(root, root, &statuses))
+}
+
+fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, String>, String> {
+    let mut options = StatusOptions::new();
+
+    options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false)
+        .include_unmodified(false);
+
+    let statuses = repo
+        .statuses(Some(&mut options))
+        .map_err(|error| error.to_string())?;
+
+    let mut result = HashMap::new();
+
+    for entry in statuses.iter() {
+        let path = entry.path().unwrap_or("Unknown").to_string();
+
+        if let Some(status) = get_status_name(entry.status()) {
+            result.insert(path, status.to_string());
+        }
+    }
+
+    Ok(result)
+}
+
+fn get_status_name(status: Status) -> Option<&'static str> {
+    if status.contains(Status::CONFLICTED) {
+        Some("conflicted")
+    } else if status.contains(Status::WT_NEW) {
+        Some("untracked")
+    } else if status.contains(Status::INDEX_NEW) {
+        Some("added")
+    } else if status.contains(Status::WT_DELETED) || status.contains(Status::INDEX_DELETED) {
+        Some("deleted")
+    } else if status.contains(Status::WT_RENAMED) || status.contains(Status::INDEX_RENAMED) {
+        Some("renamed")
+    } else if status.contains(Status::WT_MODIFIED) || status.contains(Status::INDEX_MODIFIED) {
+        Some("modified")
+    } else {
+        None
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

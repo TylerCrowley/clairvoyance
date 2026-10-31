@@ -82,11 +82,38 @@ main {
   font-size: 13px;
 }
 
-.directory > summary {
-  padding: 6px 4px;
-  border-radius: 5px;
+.directory summary {
+  display: flex;
+  align-items: center;
   cursor: pointer;
-  list-style-position: inside;
+  list-style: none;
+  gap: 5px;
+}
+
+.directory summary,
+.file {
+  display: flex;
+  align-items: center;
+  
+}
+
+.directory summary::-webkit-details-marker {
+  display: none;
+}
+
+.directory summary::before {
+  content: "▶";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 14px;
+  transform-origin: center center;
+}
+
+.directory[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .directory > summary:hover,
@@ -104,6 +131,7 @@ main {
   padding: 6px 4px;
   border-radius: 5px;
   overflow-wrap: anywhere;
+  display:flex;
 }
 
 .repo-controls {
@@ -177,4 +205,37 @@ main {
 
 .unreadable::marker {
   color: #e0a45b;
+}
+
+.git-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.git-status-modified {
+  color: #d9a441;
+}
+
+.git-status-added,
+.git-status-untracked {
+  color: #50b77a;
+}
+
+.git-status-deleted {
+  color: #e06c75;
+}
+
+.git-status-renamed {
+  color: #61afef;
+}
+
+.git-status-conflicted {
+  color: #e06c75;
 }
