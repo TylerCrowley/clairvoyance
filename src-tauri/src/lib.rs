@@ -65,8 +65,6 @@ fn build_tree(path: &Path, repo_root: &Path, statuses: &HashMap<String, String>)
             .to_string_lossy()
             .replace('\\', "/");
         let status = statuses.get(&relative_path).cloned();
-        if let Some(status) = &status {
-}
 
         let metadata = match fs::symlink_metadata(&entry_path) {
             Ok(metadata) => metadata,
@@ -131,6 +129,7 @@ fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
     Ok(build_tree(root, root, &statuses))
 }
 
+// Creates a hash map of the statuses of each file in the repository, this seemed much faster than grabbing each one individually
 fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, String>, String> {
     let mut options = StatusOptions::new();
 
@@ -157,6 +156,7 @@ fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, String>,
     Ok(result)
 }
 
+// Turns the git2 status indicator into plain text
 fn get_status_name(status: Status) -> Option<&'static str> {
     if status.contains(Status::CONFLICTED) {
         Some("conflicted")

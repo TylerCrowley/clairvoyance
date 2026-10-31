@@ -44,7 +44,8 @@ h2 {
   font-size: 17px;
 }
 
-.status, .muted {
+.status,
+.muted {
   color: #a0a6b5;
   font-size: 13px;
 }
@@ -69,6 +70,10 @@ main {
 .panel-heading {
   padding: 20px;
   border-bottom: 1px solid #30343d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .panel-heading p {
@@ -94,7 +99,7 @@ main {
 .file {
   display: flex;
   align-items: center;
-  
+
 }
 
 .directory summary::-webkit-details-marker {
@@ -112,11 +117,11 @@ main {
   transform-origin: center center;
 }
 
-.directory[open] > summary::before {
+.directory[open]>summary::before {
   transform: rotate(90deg);
 }
 
-.directory > summary:hover,
+.directory>summary:hover,
 .file:hover {
   background: #272b35;
 }
@@ -131,7 +136,7 @@ main {
   padding: 6px 4px;
   border-radius: 5px;
   overflow-wrap: anywhere;
-  display:flex;
+  display: flex;
 }
 
 .repo-controls {
@@ -238,4 +243,24 @@ main {
 
 .git-status-conflicted {
   color: #e06c75;
+}
+
+.repo-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+#repo-status-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#repo-status-summary .git-status {
+  margin-left: 0;
+  width: auto;
+  height: auto;
+  font-size: 12px;
 }
