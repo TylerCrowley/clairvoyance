@@ -16,7 +16,7 @@ struct TreeEntry {
     children: Vec<TreeEntry>,
 }
 
-// Reads the files and creates the file tree structure
+// Reads the directory and creates the file tree structure
 fn build_tree(path: &Path, repo_root: &Path, statuses: &HashMap<String, String>) -> TreeEntry {
     let mut entries = Vec::new();
 
@@ -175,13 +175,37 @@ fn get_status_name(status: Status) -> Option<&'static str> {
     }
 }
 
+#[tauri::command]
+// Reads the file content
+fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
+    let repo_root = std::fs::canonicalize(&repo_path).map_err(|error| error.to_string())?;
+
+    let file = std::fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
+
+    if !file.starts_with(&repo_root) {
+        return Err("File is outside the selected repository.".to_string());
+    }
+
+    if !file.is_file() {
+        return Err("Selected path is not a file.".to_string());
+    }
+
+    let metadata = std::fs::metadata(&file).map_err(|error| error.to_string())?;
+
+    if metadata.len() > 2 * 1024 * 1024 {
+        return Err("File is too large to display (2 MB limit).".to_string());
+    }
+
+    std::fs::read_to_string(&file).map_err(|error| format!("Could not read file: {}", error))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_repository_tree])
+        .invoke_handler(tauri::generate_handler![get_repository_tree, read_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

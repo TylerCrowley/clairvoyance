@@ -22,41 +22,67 @@ if (!app) {
 // Main HTML code for the interface
 app.innerHTML = `
   <header class="topbar">
-      <div>
-          <p class="eyebrow">CLAIRVOYANCE</p>
-          <h1>Repository Explorer</h1>
-      </div>
-      <div class="repo-controls">
-          <button id="select-repo" class="button button-primary">
-              <span>+</span>
-              Open Repository
-          </button>
-          <button id="refresh-repo" class="button" disabled>
-              Refresh
-          </button>
-          <span id="repo-path" class="repo-path">
-              No repository selected
-          </span>
-      </div>
-      <span id="status" class="status">No repository selected</span>
-  </header>
+    <div>
+        <p class="eyebrow">CLAIRVOYANCE</p>
+        <h1>Repository Explorer</h1>
+    </div>
+    <div class="repo-controls">
+        <button id="select-repo" class="button button-primary">
+            <span>+</span>
+            Open Repository
+        </button>
+        <button id="refresh-repo" class="button" disabled>
+            Refresh
+        </button>
+        <span id="repo-path" class="repo-path">
+            No repository selected
+        </span>
+    </div>
+    <span id="status" class="status">No repository selected</span>
+</header>
 
-  <main>
-      <section class="panel">
-          <div class="panel-heading">
-              <div>
-                  <h2 id="repo-name">No repository open</h2>
-                  <p class="muted">Files and directories</p>
-              </div>
+<main class="workspace">
 
-              <div id="repo-status-summary"></div>
-          </div>
+    <section class="panel workspace-header">
+        <div>
+            <h2 id="repo-name">No repository open</h2>
+            <p class="muted">Files and directories</p>
+        </div>
 
-          <div id="tree" class="tree">
-              <p class="muted">Open a repository to explore its files.</p>
-          </div>
-      </section>
-  </main>
+        <div id="repo-status-summary"></div>
+    </section>
+
+    <div class="workspace-body">
+
+        <aside class="panel explorer-panel">
+            <div class="panel-heading">
+                <h3>Explorer</h3>
+            </div>
+
+            <div id="tree" class="tree">
+                <p class="muted">
+                    Open a repository to explore its files.
+                </p>
+            </div>
+        </aside>
+
+        <section class="panel content-panel">
+            <div class="panel-heading">
+                <div>
+                    <h2 id="file-name">No file selected</h2>
+                    <p id="file-path" class="muted"></p>
+                </div>
+            </div>
+
+            <div id="file-content" class="file-content">
+                <p class="muted">
+                    Select a file from the explorer to view its contents.
+                </p>
+            </div>
+        </section>
+
+    </div>
+</main>
 `;
 
 // Variable declearation
@@ -133,6 +159,9 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
 
   const file = document.createElement("div");
   file.className = "file";
+  file.addEventListener("click", () => {
+    void openFile(entry, file);
+  });
 
   const icon = document.createElement("i");
   icon.setAttribute("data-lucide", "file");
@@ -281,5 +310,58 @@ function renderStatusSummary(root: TreeEntry) {
     item.title = `${count} ${status} file${count === 1 ? "" : "s"}`;
 
     summary.appendChild(item);
+  }
+}
+
+// Opens and displays the selected file
+async function openFile(entry: TreeEntry, element: HTMLElement) {
+  if (!currentRepoPath) return;
+
+  const fileName = document.querySelector<HTMLHeadingElement>("#file-name");
+  const filePath = document.querySelector<HTMLParagraphElement>("#file-path");
+  const fileContent = document.querySelector<HTMLDivElement>("#file-content");
+
+  if (!fileName || !filePath || !fileContent) return;
+
+  document.querySelectorAll(".file.selected").forEach((file) => {
+    file.classList.remove("selected");
+  });
+
+  element.classList.add("selected");
+
+  fileName.textContent = entry.name;
+  filePath.textContent = entry.path;
+  fileContent.textContent = "Loading file...";
+
+  try {
+    const contents = await invoke<string>("read_file", {
+      repoPath: currentRepoPath,
+      filePath: entry.path,
+    });
+
+    const pre = document.createElement("pre");
+    pre.className = "file-text";
+
+    const lines = contents.split("\n");
+
+    lines.forEach((line, index) => {
+      const lineElement = document.createElement("div");
+      lineElement.className = "file-line";
+
+      const lineNumber = document.createElement("span");
+      lineNumber.className = "line-number";
+      lineNumber.textContent = String(index + 1);
+
+      const lineContent = document.createElement("span");
+      lineContent.className = "line-content";
+      lineContent.textContent = line;
+
+      lineElement.append(lineNumber, lineContent);
+      pre.appendChild(lineElement);
+    });
+
+    fileContent.replaceChildren(pre);
+  } catch (error) {
+    fileContent.textContent = `Unable to open file: ${error}`;
   }
 }

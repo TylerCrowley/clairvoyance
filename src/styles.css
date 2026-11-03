@@ -67,6 +67,13 @@ main {
   background: #191c23;
 }
 
+.workspace .panel {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+}
+
 .panel-heading {
   padding: 20px;
   border-bottom: 1px solid #30343d;
@@ -263,4 +270,129 @@ main {
   width: auto;
   height: auto;
   font-size: 12px;
+}
+
+.workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+.workspace-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.workspace-body {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 16px;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+.explorer-panel,
+.content-panel {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.explorer-panel {
+    overflow-y: auto;
+}
+
+.content-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 20px;
+}
+
+@media (max-width: 700px) {
+    .workspace-body {
+        grid-template-columns: minmax(150px, 1fr) minmax(0, 2fr);
+    }
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.file {
+    cursor: pointer;
+}
+
+.file:hover {
+    background: #252a34;
+}
+
+.file.selected {
+    background: #30384a;
+    border-radius: 4px;
+}
+
+.file-text {
+    margin: 0;
+    padding: 12px 0;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.file-line {
+    display: flex;
+    width: 100%;
+    padding-right: 20px;
+}
+
+.line-number {
+    display: inline-block;
+    width: 48px;
+    flex-shrink: 0;
+    padding-right: 12px;
+    text-align: right;
+    color: #666d7a;
+    user-select: none;
+}
+
+.line-content {
+    flex: 1;
+    min-width: 0;
+    padding-left: 8px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }

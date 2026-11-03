@@ -20,19 +20,45 @@
     <span id="status" class="status">No repository selected</span>
 </header>
 
-<main>
-    <section class="panel">
-        <div class="panel-heading">
-            <div>
-                <h2 id="repo-name">No repository open</h2>
-                <p class="muted">Files and directories</p>
+<main class="workspace">
+
+    <section class="panel workspace-header">
+        <div>
+            <h2 id="repo-name">No repository open</h2>
+            <p class="muted">Files and directories</p>
+        </div>
+
+        <div id="repo-status-summary"></div>
+    </section>
+
+    <div class="workspace-body">
+
+        <aside class="panel explorer-panel">
+            <div class="panel-heading">
+                <h3>Explorer</h3>
             </div>
 
-            <div id="repo-status-summary"></div>
-        </div>
+            <div id="tree" class="tree">
+                <p class="muted">
+                    Open a repository to explore its files.
+                </p>
+            </div>
+        </aside>
 
-        <div id="tree" class="tree">
-            <p class="muted">Open a repository to explore its files.</p>
-        </div>
-    </section>
+        <section class="panel content-panel">
+            <div class="panel-heading">
+                <div>
+                    <h2 id="file-name">No file selected</h2>
+                    <p id="file-path" class="muted"></p>
+                </div>
+            </div>
+
+            <div id="file-content" class="file-content">
+                <p class="muted">
+                    Select a file from the explorer to view its contents.
+                </p>
+            </div>
+        </section>
+
+    </div>
 </main>
