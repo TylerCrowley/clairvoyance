@@ -4,12 +4,17 @@ import { open } from "@tauri-apps/plugin-dialog";
 // Switched from emojis to lucide, so that can be recolored or altered in the future
 import { createIcons, Folder, File, Lock } from "lucide";
 
+interface GitFileStatus {
+  staged: string | null;
+  unstaged: string | null;
+}
+
 interface TreeEntry {
   name: string;
   path: string;
   is_dir: boolean;
   unreadable: boolean;
-  status: string | null;
+  status: GitFileStatus | null;
   children: TreeEntry[];
 }
 
@@ -138,9 +143,20 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
     );
     summary.appendChild(label);
 
-    const indicator = createStatusIndicator(entry.status);
-    if (indicator) {
-      summary.appendChild(indicator);
+    if (entry.status?.staged) {
+      const indicator = createStatusIndicator(entry.status.staged);
+      if (indicator) {
+        indicator.title = `Staged: ${entry.status.staged}`;
+        summary.appendChild(indicator);
+      }
+    }
+
+    if (entry.status?.unstaged) {
+      const indicator = createStatusIndicator(entry.status.unstaged);
+      if (indicator) {
+        indicator.title = `Unstaged: ${entry.status.unstaged}`;
+        summary.appendChild(indicator);
+      }
     }
 
     summary.title = entry.path || ".";
@@ -169,10 +185,20 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
 
   file.appendChild(icon);
   file.appendChild(document.createTextNode(` ${entry.name}`));
-  const indicator = createStatusIndicator(entry.status);
+  if (entry.status?.staged) {
+    const indicator = createStatusIndicator(entry.status.staged);
+    if (indicator) {
+      indicator.title = `Staged: ${entry.status.staged}`;
+      file.appendChild(indicator);
+    }
+  }
 
-  if (indicator) {
-    file.appendChild(indicator);
+  if (entry.status?.unstaged) {
+    const indicator = createStatusIndicator(entry.status.unstaged);
+    if (indicator) {
+      indicator.title = `Unstaged: ${entry.status.unstaged}`;
+      file.appendChild(indicator);
+    }
   }
 
   file.title = entry.path;
@@ -233,18 +259,15 @@ function createStatusIndicator(status: string | null): HTMLElement | null {
   const indicator = document.createElement("span");
   indicator.className = `git-status git-status-${status}`;
 
-  // Short version of the labels
   const labels: Record<string, string> = {
     modified: "M",
     added: "A",
     untracked: "U",
     deleted: "D",
     renamed: "R",
-    conflicted: "!",
+    conflicted: "!"
   };
 
-  indicator.textContent = labels[status] ?? "?";
-  // Long version of the labels
   const descriptions: Record<string, string> = {
     modified: "Modified",
     added: "Added",
@@ -253,6 +276,8 @@ function createStatusIndicator(status: string | null): HTMLElement | null {
     renamed: "Renamed",
     conflicted: "Conflicted"
   };
+
+  indicator.textContent = labels[status] ?? "?";
   indicator.title = descriptions[status] ?? status;
 
   return indicator;
@@ -263,8 +288,14 @@ function getStatusCounts(root: TreeEntry): Record<string, number> {
   const counts: Record<string, number> = {};
 
   function visit(entry: TreeEntry) {
-    if (entry.status) {
-      counts[entry.status] = (counts[entry.status] ?? 0) + 1;
+    if (entry.status?.staged) {
+      const status = `staged-${entry.status.staged}`;
+      counts[status] = (counts[status] ?? 0) + 1;
+    }
+
+    if (entry.status?.unstaged) {
+      const status = `unstaged-${entry.status.unstaged}`;
+      counts[status] = (counts[status] ?? 0) + 1;
     }
 
     for (const child of entry.children) {
@@ -280,9 +311,11 @@ function getStatusCounts(root: TreeEntry): Record<string, number> {
 function renderStatusSummary(root: TreeEntry) {
   const summary = document.querySelector<HTMLDivElement>("#repo-status-summary");
   if (!summary) return;
+
   summary.replaceChildren();
 
   const counts = getStatusCounts(root);
+
   const labels: Record<string, string> = {
     modified: "M",
     added: "A",
@@ -291,23 +324,32 @@ function renderStatusSummary(root: TreeEntry) {
     renamed: "R",
     conflicted: "!"
   };
+
   const order = [
-    "modified",
-    "added",
-    "untracked",
-    "deleted",
-    "renamed",
-    "conflicted"
+    "staged-modified",
+    "staged-added",
+    "staged-deleted",
+    "staged-renamed",
+    "staged-conflicted",
+    "unstaged-modified",
+    "unstaged-added",
+    "unstaged-untracked",
+    "unstaged-deleted",
+    "unstaged-renamed",
+    "unstaged-conflicted"
   ];
-  for (const status of order) {
-    const count = counts[status];
+
+  for (const key of order) {
+    const count = counts[key];
 
     if (!count) continue;
 
+    const [area, status] = key.split("-");
+
     const item = document.createElement("span");
     item.className = `git-status git-status-${status}`;
-    item.textContent = `${labels[status]} ${count}`;
-    item.title = `${count} ${status} file${count === 1 ? "" : "s"}`;
+    item.textContent = `${area === "staged" ? "S" : "U"}${labels[status]} ${count}`;
+    item.title = `${count} ${area} ${status} file${count === 1 ? "" : "s"}`;
 
     summary.appendChild(item);
   }
