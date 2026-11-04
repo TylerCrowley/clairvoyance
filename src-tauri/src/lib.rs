@@ -5,19 +5,29 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 // Data structure for each entry in the file tree
+struct GitFileStatus {
+    staged: Option<String>,
+    unstaged: Option<String>,
+}
+
+#[derive(Serialize)]
 struct TreeEntry {
     name: String,
     path: String,
     is_dir: bool,
     unreadable: bool,
-    status: Option<String>,
+    status: Option<GitFileStatus>,
     children: Vec<TreeEntry>,
 }
 
 // Reads the directory and creates the file tree structure
-fn build_tree(path: &Path, repo_root: &Path, statuses: &HashMap<String, String>) -> TreeEntry {
+fn build_tree(
+    path: &Path,
+    repo_root: &Path,
+    statuses: &HashMap<String, GitFileStatus>,
+) -> TreeEntry {
     let mut entries = Vec::new();
 
     let name = path
@@ -130,7 +140,7 @@ fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
 }
 
 // Creates a hash map of the statuses of each file in the repository, this seemed much faster than grabbing each one individually
-fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, String>, String> {
+fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, GitFileStatus>, String> {
     let mut options = StatusOptions::new();
 
     options
@@ -147,32 +157,44 @@ fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, String>,
 
     for entry in statuses.iter() {
         let path = entry.path().unwrap_or("Unknown").to_string();
+        let status = entry.status();
 
-        if let Some(status) = get_status_name(entry.status()) {
-            result.insert(path, status.to_string());
-        }
+        let staged = if status.contains(Status::CONFLICTED) {
+            Some("conflicted".to_string())
+        } else if status.contains(Status::INDEX_NEW) {
+            Some("added".to_string())
+        } else if status.contains(Status::INDEX_MODIFIED) {
+            Some("modified".to_string())
+        } else if status.contains(Status::INDEX_DELETED) {
+            Some("deleted".to_string())
+        } else if status.contains(Status::INDEX_RENAMED) {
+            Some("renamed".to_string())
+        } else if status.contains(Status::INDEX_TYPECHANGE) {
+            Some("typechanged".to_string())
+        } else {
+            None
+        };
+
+        let unstaged = if status.contains(Status::CONFLICTED) {
+            Some("conflicted".to_string())
+        } else if status.contains(Status::WT_NEW) {
+            Some("untracked".to_string())
+        } else if status.contains(Status::WT_MODIFIED) {
+            Some("modified".to_string())
+        } else if status.contains(Status::WT_DELETED) {
+            Some("deleted".to_string())
+        } else if status.contains(Status::WT_RENAMED) {
+            Some("renamed".to_string())
+        } else if status.contains(Status::WT_TYPECHANGE) {
+            Some("typechanged".to_string())
+        } else {
+            None
+        };
+
+        result.insert(path, GitFileStatus { staged, unstaged });
     }
 
     Ok(result)
-}
-
-// Turns the git2 status indicator into plain text
-fn get_status_name(status: Status) -> Option<&'static str> {
-    if status.contains(Status::CONFLICTED) {
-        Some("conflicted")
-    } else if status.contains(Status::WT_NEW) {
-        Some("untracked")
-    } else if status.contains(Status::INDEX_NEW) {
-        Some("added")
-    } else if status.contains(Status::WT_DELETED) || status.contains(Status::INDEX_DELETED) {
-        Some("deleted")
-    } else if status.contains(Status::WT_RENAMED) || status.contains(Status::INDEX_RENAMED) {
-        Some("renamed")
-    } else if status.contains(Status::WT_MODIFIED) || status.contains(Status::INDEX_MODIFIED) {
-        Some("modified")
-    } else {
-        None
-    }
 }
 
 #[tauri::command]

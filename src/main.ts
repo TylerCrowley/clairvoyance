@@ -215,6 +215,7 @@ async function loadRepository(path: string) {
   summary?.replaceChildren();
   try {
     const root = await invoke<TreeEntry>("get_repository_tree", { path });
+
     repoName.textContent = root.name || "Repository";
     currentRepoPath = path;
 
