@@ -6,13 +6,13 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Serialize, Clone)]
-// Data structure for each entry in the file tree
 struct GitFileStatus {
     staged: Option<String>,
     unstaged: Option<String>,
 }
 
 #[derive(Serialize)]
+// Data structure for each entry in the file tree
 struct TreeEntry {
     name: String,
     path: String,
@@ -221,13 +221,86 @@ fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
     std::fs::read_to_string(&file).map_err(|error| format!("Could not read file: {}", error))
 }
 
+#[tauri::command]
+fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let repo_root = repo
+        .workdir()
+        .ok_or_else(|| "Cannot stage files in a bare repository.".to_string())?;
+
+    let relative_path = Path::new(&file_path)
+        .strip_prefix(repo_root)
+        .map_err(|_| "File is outside the repository.".to_string())?;
+
+    let mut index = repo.index().map_err(|error| error.to_string())?;
+
+    index
+        .add_path(relative_path)
+        .map_err(|error| format!("Could not stage file: {}", error))?;
+
+    index
+        .write()
+        .map_err(|error| format!("Could not save Git index: {}", error))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let repo_root = repo
+        .workdir()
+        .ok_or("Cannot unstage files in a bare repository.")?;
+
+    let repo_root = std::fs::canonicalize(repo_root).map_err(|error| error.to_string())?;
+
+    let file = std::fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
+
+    let relative_path = file
+        .strip_prefix(&repo_root)
+        .map_err(|_| "File is outside the repository.")?;
+
+    if !file.is_file() {
+        return Err("Selected path is not a file.".to_string());
+    }
+
+    let head = match repo.head() {
+        Ok(head) => {
+            let commit = head.peel_to_commit().map_err(|error| error.to_string())?;
+
+            Some(commit.into_object())
+        }
+        Err(error)
+            if matches!(
+                error.code(),
+                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
+            ) =>
+        {
+            None
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+
+    repo.reset_default(head.as_ref(), [relative_path])
+        .map_err(|error| format!("Could not unstage file: {}", error))?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_repository_tree, read_file])
+        .invoke_handler(tauri::generate_handler![
+            get_repository_tree,
+            read_file,
+            stage_file,
+            unstage_file,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

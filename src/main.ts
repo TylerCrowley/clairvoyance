@@ -26,7 +26,7 @@ if (!app) {
 
 // Main HTML code for the interface
 app.innerHTML = `
-  <header class="topbar">
+<header class="topbar">
     <div>
         <p class="eyebrow">CLAIRVOYANCE</p>
         <h1>Repository Explorer</h1>
@@ -77,8 +77,11 @@ app.innerHTML = `
                     <h2 id="file-name">No file selected</h2>
                     <p id="file-path" class="muted"></p>
                 </div>
-            </div>
 
+                <button id="stage-button" hidden>
+                    Stage File
+                </button>
+            </div>
             <div id="file-content" class="file-content">
                 <p class="muted">
                     Select a file from the explorer to view its contents.
@@ -96,6 +99,8 @@ const status = document.querySelector<HTMLSpanElement>("#status")!;
 const repoName = document.querySelector<HTMLHeadingElement>("#repo-name")!;
 const selectButton = document.querySelector<HTMLButtonElement>("#select-repo");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-repo");
+const stageButton = document.querySelector<HTMLButtonElement>("#stage-button");
+let selectedFile: TreeEntry | null = null;
 
 let currentRepoPath: string | null = null;
 
@@ -120,6 +125,84 @@ refreshButton?.addEventListener("click", async () => {
   }
 });
 
+stageButton?.addEventListener("click", async () => {
+  if (!currentRepoPath || !selectedFile || !stageButton) return;
+
+  const repoPath = currentRepoPath;
+  const filePath = selectedFile.path;
+
+  const command = selectedFile.status?.unstaged
+    ? "stage_file"
+    : selectedFile.status?.staged
+      ? "unstage_file"
+      : null;
+
+  if (!command) return;
+
+  stageButton.disabled = true;
+
+  try {
+    await invoke(command, {
+      repoPath,
+      filePath,
+    });
+
+    await loadRepository(repoPath);
+
+  } catch (error) {
+    console.error(`Failed to ${command}:`, error);
+
+    status.textContent = `Git operation failed: ${error}`;
+    if (selectedFile) {
+      updateStageButton(selectedFile);
+    }
+  }
+});
+
+function countChangedFiles(entry: TreeEntry): number {
+  if (!entry.is_dir) {
+    return entry.status?.staged || entry.status?.unstaged ? 1 : 0;
+  }
+
+  return entry.children.reduce(
+    (total, child) => total + countChangedFiles(child),
+    0
+  );
+}
+
+function updateStageButton(entry: TreeEntry | null) {
+  if (!stageButton) return;
+
+  if (entry?.status?.unstaged) {
+    stageButton.hidden = false;
+    stageButton.textContent = "Stage File";
+    stageButton.disabled =
+      entry.status.unstaged === "deleted" ||
+      entry.status.unstaged === "conflicted";
+
+  } else if (entry?.status?.staged) {
+    stageButton.hidden = false;
+    stageButton.textContent = "Unstage File";
+    stageButton.disabled = entry.status.staged === "conflicted";
+
+  } else {
+    stageButton.hidden = true;
+  }
+}
+
+function findFileByPath(entry: TreeEntry, path: string): TreeEntry | null {
+  if (!entry.is_dir && entry.path === path) {
+    return entry;
+  }
+
+  for (const child of entry.children) {
+    const found = findFileByPath(child, path);
+    if (found) return found;
+  }
+
+  return null;
+}
+
 // Recursively renders the file tree
 function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
   if (entry.is_dir) {
@@ -142,6 +225,17 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
         : ` ${entry.name || "Repository root"}`
     );
     summary.appendChild(label);
+
+    const changedFiles = countChangedFiles(entry);
+
+    if (changedFiles > 0) {
+      const count = document.createElement("span");
+      count.className = "directory-change-count";
+      count.textContent = String(changedFiles);
+      count.title = `${changedFiles} changed file${changedFiles === 1 ? "" : "s"}`;
+
+      summary.appendChild(count);
+    }
 
     if (entry.status?.staged) {
       const indicator = createStatusIndicator(entry.status.staged);
@@ -175,6 +269,7 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
 
   const file = document.createElement("div");
   file.className = "file";
+  file.dataset.path = entry.path;
   file.addEventListener("click", () => {
     void openFile(entry, file);
   });
@@ -215,6 +310,7 @@ async function loadRepository(path: string) {
   summary?.replaceChildren();
   try {
     const root = await invoke<TreeEntry>("get_repository_tree", { path });
+    const selectedPath = selectedFile?.path;
 
     repoName.textContent = root.name || "Repository";
     currentRepoPath = path;
@@ -228,6 +324,21 @@ async function loadRepository(path: string) {
         Lock,
       },
     });
+
+    if (selectedPath) {
+      const updatedFile = findFileByPath(root, selectedPath);
+
+      const fileElement = Array.from(
+        treeContainer.querySelectorAll<HTMLElement>(".file")
+      ).find(element => element.dataset.path === selectedPath);
+
+      if (updatedFile && fileElement) {
+        await openFile(updatedFile, fileElement);
+      } else {
+        selectedFile = null;
+        updateStageButton(null);
+      }
+    }
 
     const repoPath = document.querySelector<HTMLSpanElement>("#repo-path");
 
@@ -371,6 +482,9 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   });
 
   element.classList.add("selected");
+
+  selectedFile = entry;
+  updateStageButton(entry);
 
   fileName.textContent = entry.name;
   filePath.textContent = entry.path;
