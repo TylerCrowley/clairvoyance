@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Serialize, Clone)]
+// Moved Git status into it's own data type
 struct GitFileStatus {
     staged: Option<String>,
     unstaged: Option<String>,
@@ -222,6 +223,7 @@ fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+// Stages the changes in a file
 fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
@@ -247,6 +249,7 @@ fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+// Unstages changes in a file that have already been staged
 fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 

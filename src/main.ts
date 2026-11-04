@@ -101,7 +101,6 @@ const selectButton = document.querySelector<HTMLButtonElement>("#select-repo");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-repo");
 const stageButton = document.querySelector<HTMLButtonElement>("#stage-button");
 let selectedFile: TreeEntry | null = null;
-
 let currentRepoPath: string | null = null;
 
 // The button to open the system dialog and select a folder
@@ -125,12 +124,12 @@ refreshButton?.addEventListener("click", async () => {
   }
 });
 
+// The button to stage and unstage changes in the repo
 stageButton?.addEventListener("click", async () => {
   if (!currentRepoPath || !selectedFile || !stageButton) return;
 
   const repoPath = currentRepoPath;
   const filePath = selectedFile.path;
-
   const command = selectedFile.status?.unstaged
     ? "stage_file"
     : selectedFile.status?.staged
@@ -138,7 +137,6 @@ stageButton?.addEventListener("click", async () => {
       : null;
 
   if (!command) return;
-
   stageButton.disabled = true;
 
   try {
@@ -146,12 +144,9 @@ stageButton?.addEventListener("click", async () => {
       repoPath,
       filePath,
     });
-
     await loadRepository(repoPath);
-
   } catch (error) {
     console.error(`Failed to ${command}:`, error);
-
     status.textContent = `Git operation failed: ${error}`;
     if (selectedFile) {
       updateStageButton(selectedFile);
@@ -159,6 +154,7 @@ stageButton?.addEventListener("click", async () => {
   }
 });
 
+// Adds status totals to directories, makes it much easier to navigate
 function countChangedFiles(entry: TreeEntry): number {
   if (!entry.is_dir) {
     return entry.status?.staged || entry.status?.unstaged ? 1 : 0;
@@ -170,6 +166,7 @@ function countChangedFiles(entry: TreeEntry): number {
   );
 }
 
+// Changes the stage button to unstage when appropriate
 function updateStageButton(entry: TreeEntry | null) {
   if (!stageButton) return;
 
@@ -179,27 +176,24 @@ function updateStageButton(entry: TreeEntry | null) {
     stageButton.disabled =
       entry.status.unstaged === "deleted" ||
       entry.status.unstaged === "conflicted";
-
   } else if (entry?.status?.staged) {
     stageButton.hidden = false;
     stageButton.textContent = "Unstage File";
     stageButton.disabled = entry.status.staged === "conflicted";
-
   } else {
     stageButton.hidden = true;
   }
 }
 
+// This function makes sure the same file is selected when updating or reloading the repo
 function findFileByPath(entry: TreeEntry, path: string): TreeEntry | null {
   if (!entry.is_dir && entry.path === path) {
     return entry;
   }
-
   for (const child of entry.children) {
     const found = findFileByPath(child, path);
     if (found) return found;
   }
-
   return null;
 }
 
@@ -233,7 +227,6 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
       count.className = "directory-change-count";
       count.textContent = String(changedFiles);
       count.title = `${changedFiles} changed file${changedFiles === 1 ? "" : "s"}`;
-
       summary.appendChild(count);
     }
 
@@ -306,7 +299,6 @@ async function loadRepository(path: string) {
   status.textContent = "Refreshing repository…";
   status.classList.remove("success");
   const summary = document.querySelector<HTMLDivElement>("#repo-status-summary");
-
   summary?.replaceChildren();
   try {
     const root = await invoke<TreeEntry>("get_repository_tree", { path });
