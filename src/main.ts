@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import "./styles.css";
+import appHTML from "./app.html?raw";
 import { open } from "@tauri-apps/plugin-dialog";
 // Switched from emojis to lucide, so that can be recolored or altered in the future
 import { createIcons, Folder, File, Lock } from "lucide";
@@ -25,73 +26,7 @@ if (!app) {
 }
 
 // Main HTML code for the interface
-app.innerHTML = `
-<header class="topbar">
-    <div>
-        <p class="eyebrow">CLAIRVOYANCE</p>
-        <h1>Repository Explorer</h1>
-    </div>
-    <div class="repo-controls">
-        <button id="select-repo" class="button button-primary">
-            <span>+</span>
-            Open Repository
-        </button>
-        <button id="refresh-repo" class="button" disabled>
-            Refresh
-        </button>
-        <span id="repo-path" class="repo-path">
-            No repository selected
-        </span>
-    </div>
-    <span id="status" class="status">No repository selected</span>
-</header>
-
-<main class="workspace">
-
-    <section class="panel workspace-header">
-        <div>
-            <h2 id="repo-name">No repository open</h2>
-            <p class="muted">Files and directories</p>
-        </div>
-
-        <div id="repo-status-summary"></div>
-    </section>
-
-    <div class="workspace-body">
-
-        <aside class="panel explorer-panel">
-            <div class="panel-heading">
-                <h3>Explorer</h3>
-            </div>
-
-            <div id="tree" class="tree">
-                <p class="muted">
-                    Open a repository to explore its files.
-                </p>
-            </div>
-        </aside>
-
-        <section class="panel content-panel">
-            <div class="panel-heading">
-                <div>
-                    <h2 id="file-name">No file selected</h2>
-                    <p id="file-path" class="muted"></p>
-                </div>
-
-                <button id="stage-button" hidden>
-                    Stage File
-                </button>
-            </div>
-            <div id="file-content" class="file-content">
-                <p class="muted">
-                    Select a file from the explorer to view its contents.
-                </p>
-            </div>
-        </section>
-
-    </div>
-</main>
-`;
+app.innerHTML = appHTML;
 
 // Variable declearation
 const treeContainer = document.querySelector<HTMLDivElement>("#tree")!;
@@ -100,6 +35,7 @@ const repoName = document.querySelector<HTMLHeadingElement>("#repo-name")!;
 const selectButton = document.querySelector<HTMLButtonElement>("#select-repo");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-repo");
 const stageButton = document.querySelector<HTMLButtonElement>("#stage-button");
+const commitButton = document.querySelector<HTMLButtonElement>("#commit-button");
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
 
@@ -151,6 +87,23 @@ stageButton?.addEventListener("click", async () => {
     if (selectedFile) {
       updateStageButton(selectedFile);
     }
+  }
+});
+
+commitButton?.addEventListener("click", async () => {
+  if (!currentRepoPath || !selectedFile || !commitButton) return;
+
+  const repoPath = currentRepoPath;
+
+  try {
+    await invoke("commit_changes", {
+      repoPath: currentRepoPath,
+      message: "commitMessage",
+    });
+    await loadRepository(repoPath);
+  } catch (error) {
+    console.error(`Failed to commit changes:`, error);
+    status.textContent = `Git operation failed: ${error}`;
   }
 });
 
@@ -307,6 +260,10 @@ async function loadRepository(path: string) {
     repoName.textContent = root.name || "Repository";
     currentRepoPath = path;
 
+    if (commitButton) {
+      commitButton.disabled = true;
+    }
+
     treeContainer.replaceChildren(renderEntry(root, true));
     renderStatusSummary(root);
     createIcons({
@@ -447,6 +404,10 @@ function renderStatusSummary(root: TreeEntry) {
     const count = counts[key];
 
     if (!count) continue;
+
+    if (commitButton) {
+      commitButton.disabled = false;
+    }
 
     const [area, status] = key.split("-");
 

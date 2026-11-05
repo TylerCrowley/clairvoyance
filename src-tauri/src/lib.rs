@@ -292,6 +292,39 @@ fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn commit_changes(repo_path: String, message: String) -> Result<String, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    
+    let mut index = repo.index().map_err(|error| error.to_string())?;
+
+    let tree_oid = index.write_tree().map_err(|error| error.to_string())?;
+
+    let tree = repo
+        .find_tree(tree_oid)
+        .map_err(|error| error.to_string())?;
+
+    let signature = repo.signature().map_err(|error| error.to_string())?;
+
+    let parent = repo
+        .head()
+        .map_err(|error| error.to_string())?
+        .peel_to_commit()
+        .map_err(|error| error.to_string())?;
+
+    let commit_oid = repo
+        .commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            &message,
+            &tree,
+            &[&parent],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(commit_oid.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -303,6 +336,7 @@ pub fn run() {
             read_file,
             stage_file,
             unstage_file,
+            commit_changes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

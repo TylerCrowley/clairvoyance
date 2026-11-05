@@ -413,3 +413,10 @@ main.workspace {
     font-weight: 600;
     line-height: 1.4;
 }
+
+.repository-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
