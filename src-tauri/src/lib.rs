@@ -1,5 +1,5 @@
 // Rust libraries
-use git2::{DiffFormat, DiffOptions, Repository, Status, StatusOptions};
+use git2::{DiffFormat, DiffOptions, Repository, Sort, Status, StatusOptions};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -23,13 +23,22 @@ struct TreeEntry {
     children: Vec<TreeEntry>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 // Used to track the changes made to a file, when displayed
 struct FileDiffLine {
     old_line_number: Option<u32>,
     new_line_number: Option<u32>,
     line_type: String,
     content: String,
+}
+
+#[derive(Serialize)]
+struct CommitInfo {
+    hash: String,
+    message: String,
+    author: String,
+    timestamp: i64,
+    parents: Vec<String>,
 }
 
 // Reads the directory and creates the file tree structure
@@ -421,6 +430,38 @@ fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLin
     Ok(lines)
 }
 
+#[tauri::command]
+fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
+    revwalk
+        .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
+        .map_err(|error| error.to_string())?;
+    revwalk.push_head().map_err(|error| error.to_string())?;
+
+    let mut commits = Vec::new();
+    for oid_result in revwalk.take(50) {
+        let oid = oid_result.map_err(|error| error.to_string())?;
+        let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
+
+        let info = CommitInfo {
+            hash: commit.id().to_string(),
+            message: commit
+                .summary()
+                .map_err(|error| error.to_string())?
+                .unwrap_or("")
+                .to_string(),
+            author: commit.author().name().unwrap_or("Unknown").to_string(),
+            timestamp: commit.time().seconds(),
+            parents: commit.parent_ids().map(|id| id.to_string()).collect(),
+        };
+
+        commits.push(info);
+    }
+    Ok(commits)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -434,6 +475,7 @@ pub fn run() {
             unstage_file,
             commit_changes,
             get_file_diff,
+            get_commit_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

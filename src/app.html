@@ -11,9 +11,6 @@
         <button id="refresh-repo" class="button" disabled>
             Refresh
         </button>
-        <span id="repo-path" class="repo-path">
-            No repository selected
-        </span>
     </div>
     <span id="status" class="status">No repository selected</span>
 </header>
@@ -21,7 +18,9 @@
     <section class="panel workspace-header">
         <div>
             <h2 id="repo-name">No repository open</h2>
-            <p class="muted">Files and directories</p>
+            <span id="repo-path" class="repo-path">
+                No repository path
+            </span>
         </div>
         <div class="repository-actions">
             <div id="repo-status-summary"></div>
@@ -31,8 +30,8 @@
         </div>
     </section>
     <div class="workspace-body">
-        <aside class="panel explorer-panel">
-            <div class="panel-heading">
+        <aside class="panel expl`orer-panel">
+            <div class="explorer-panel-heading">
                 <h3>Explorer</h3>
             </div>
             <div id="tree" class="tree">

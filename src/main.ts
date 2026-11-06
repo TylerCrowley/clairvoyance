@@ -26,6 +26,14 @@ interface FileDiffLine {
   content: string;
 }
 
+interface CommitInfo {
+  hash: string;
+  message: string;
+  author: string;
+  timestamp: number;
+  parents: string[];
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -132,74 +140,74 @@ commitAll?.addEventListener("click", () => {
 
 // Toggles between showing and not showing the file changes
 diffToggle?.addEventListener("change", async () => {
-    if (!currentRepoPath || !selectedFile) {
-        showingDiff = false;
-        updateDiffToggle(null);
+  if (!currentRepoPath || !selectedFile) {
+    showingDiff = false;
+    updateDiffToggle(null);
+    return;
+  }
+
+  showingDiff = diffToggle.checked;
+
+  const requestedPath = selectedFile.path;
+
+  if (showingDiff) {
+    try {
+      const changes = await invoke<FileDiffLine[]>("get_file_diff", {
+        repoPath: currentRepoPath,
+        filePath: requestedPath,
+      });
+
+      // Ignore stale results if selection changes during loading.
+      if (!showingDiff || selectedFile?.path !== requestedPath) {
         return;
+      }
+
+      const pre = document.createElement("pre");
+      pre.className = "file-text";
+
+      for (const change of changes) {
+        const line = document.createElement("div");
+        line.className = `file-line diff-${change.line_type}`;
+
+        const oldLineNumber = document.createElement("span");
+        oldLineNumber.className = "line-number";
+        oldLineNumber.textContent =
+          change.old_line_number?.toString() ?? "";
+
+        const newLineNumber = document.createElement("span");
+        newLineNumber.className = "line-number";
+        newLineNumber.textContent =
+          change.new_line_number?.toString() ?? "";
+
+        const content = document.createElement("span");
+        content.className = "line-content";
+        content.textContent = change.content;
+
+        line.append(oldLineNumber, newLineNumber, content);
+        pre.appendChild(line);
+      }
+
+      const fileContent =
+        document.querySelector<HTMLDivElement>("#file-content");
+
+      fileContent?.replaceChildren(pre);
+
+    } catch (error) {
+      console.error("Failed to load diff:", error);
+      showingDiff = false;
+      updateDiffToggle(selectedFile);
+      status.textContent = `Failed to load changes: ${error}`;
     }
 
-    showingDiff = diffToggle.checked;
+  } else {
+    const fileElement = Array.from(
+      treeContainer.querySelectorAll<HTMLElement>(".file")
+    ).find(element => element.dataset.path === requestedPath);
 
-    const requestedPath = selectedFile.path;
-
-    if (showingDiff) {
-        try {
-            const changes = await invoke<FileDiffLine[]>("get_file_diff", {
-                repoPath: currentRepoPath,
-                filePath: requestedPath,
-            });
-
-            // Ignore stale results if selection changes during loading.
-            if (!showingDiff || selectedFile?.path !== requestedPath) {
-                return;
-            }
-
-            const pre = document.createElement("pre");
-            pre.className = "file-text";
-
-            for (const change of changes) {
-                const line = document.createElement("div");
-                line.className = `file-line diff-${change.line_type}`;
-
-                const oldLineNumber = document.createElement("span");
-                oldLineNumber.className = "line-number";
-                oldLineNumber.textContent =
-                    change.old_line_number?.toString() ?? "";
-
-                const newLineNumber = document.createElement("span");
-                newLineNumber.className = "line-number";
-                newLineNumber.textContent =
-                    change.new_line_number?.toString() ?? "";
-
-                const content = document.createElement("span");
-                content.className = "line-content";
-                content.textContent = change.content;
-
-                line.append(oldLineNumber, newLineNumber, content);
-                pre.appendChild(line);
-            }
-
-            const fileContent =
-                document.querySelector<HTMLDivElement>("#file-content");
-
-            fileContent?.replaceChildren(pre);
-
-        } catch (error) {
-            console.error("Failed to load diff:", error);
-            showingDiff = false;
-            updateDiffToggle(selectedFile);
-            status.textContent = `Failed to load changes: ${error}`;
-        }
-
-    } else {
-        const fileElement = Array.from(
-            treeContainer.querySelectorAll<HTMLElement>(".file")
-        ).find(element => element.dataset.path === requestedPath);
-
-        if (fileElement) {
-            await openFile(selectedFile, fileElement);
-        }
+    if (fileElement) {
+      await openFile(selectedFile, fileElement);
     }
+  }
 });
 
 // Adds status totals to directories, makes it much easier to navigate
@@ -275,14 +283,14 @@ async function performCommit(commitAllChanges: boolean) {
 
 // Handles the toggling of show changes
 function updateDiffToggle(entry: TreeEntry | null) {
-    if (!diffToggle || !diffToggleContainer) return;
+  if (!diffToggle || !diffToggleContainer) return;
 
-    const hasChanges = Boolean(
-        entry?.status?.staged || entry?.status?.unstaged
-    );
+  const hasChanges = Boolean(
+    entry?.status?.staged || entry?.status?.unstaged
+  );
 
-    diffToggleContainer.hidden = !hasChanges;
-    diffToggle.checked = hasChanges && showingDiff;
+  diffToggleContainer.hidden = !hasChanges;
+  diffToggle.checked = hasChanges && showingDiff;
 }
 
 // This function makes sure the same file is selected when updating or reloading the repo
@@ -402,6 +410,16 @@ async function loadRepository(path: string) {
   summary?.replaceChildren();
   try {
     const root = await invoke<TreeEntry>("get_repository_tree", { path });
+
+    try {
+      const history = await invoke<CommitInfo[]>("get_commit_history", {
+        repoPath: path,
+      });
+      console.table(history);
+    } catch (error) {
+      console.error("Failed to retrieve commit history:", error);
+    }
+
     const selectedPath = selectedFile?.path;
 
     repoName.textContent = root.name || "Repository";

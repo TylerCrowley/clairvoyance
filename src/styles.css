@@ -54,6 +54,10 @@ h2 {
   font-size: 13px;
 }
 
+.status{
+  width: 150px;
+}
+
 .status.success {
   color: #8fdbad;
 }
@@ -78,7 +82,8 @@ main {
     box-sizing: border-box;
 }
 
-.panel-heading {
+.panel-heading,
+.explorer-panel-heading {
   padding: 20px;
   border-bottom: 1px solid #30343d;
   display: flex;
@@ -91,10 +96,15 @@ main {
   margin-bottom: 0;
 }
 
+.explorer-panel-heading{
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
 .tree {
   padding: 16px 20px 24px;
   overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  /* font-family: ui-monospace, SFMono-Regular, Consolas, monospace; */
   font-size: 13px;
 }
 
@@ -153,9 +163,10 @@ main {
 .repo-controls {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin: auto;
 }
 
 .button {
@@ -431,7 +442,6 @@ main.workspace {
     align-items: center;
     gap: 16px;
 }
-
 
 #commit-dialog {
     width: min(500px, calc(100% - 40px));
