@@ -293,10 +293,22 @@ fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn commit_changes(repo_path: String, message: String) -> Result<String, String> {
+fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Result<String, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-    
+
     let mut index = repo.index().map_err(|error| error.to_string())?;
+
+    if commit_all {
+        index
+            .add_all(["*"], git2::IndexAddOption::DEFAULT, None)
+            .map_err(|error| error.to_string())?;
+
+        index
+            .update_all(["*"], None)
+            .map_err(|error| error.to_string())?;
+
+        index.write().map_err(|error| error.to_string())?;
+    }
 
     let tree_oid = index.write_tree().map_err(|error| error.to_string())?;
 
