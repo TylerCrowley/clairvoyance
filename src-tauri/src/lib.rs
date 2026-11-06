@@ -24,6 +24,7 @@ struct TreeEntry {
 }
 
 #[derive(serde::Serialize)]
+// Used to track the changes made to a file, when displayed
 struct FileDiffLine {
     old_line_number: Option<u32>,
     new_line_number: Option<u32>,
@@ -301,6 +302,7 @@ fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+// Creates a git commit for the current changes, either all of them or just staged changes
 fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Result<String, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
@@ -346,6 +348,7 @@ fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Resul
 }
 
 #[tauri::command]
+// Goes through each line of the file and tracks differences compared to the commited version
 fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLine>, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 

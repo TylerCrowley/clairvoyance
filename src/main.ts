@@ -105,6 +105,7 @@ stageButton?.addEventListener("click", async () => {
   }
 });
 
+// These listeners are for the Commit pop-up window
 commitButton?.addEventListener("click", () => {
   if (!commitDialog || !commitMessage) return;
 
@@ -129,6 +130,7 @@ commitAll?.addEventListener("click", () => {
   void performCommit(true);
 });
 
+// Toggles between showing and not showing the file changes
 diffToggle?.addEventListener("change", async () => {
     if (!currentRepoPath || !selectedFile) {
         showingDiff = false;
@@ -231,6 +233,7 @@ function updateStageButton(entry: TreeEntry | null) {
   }
 }
 
+// Ensures commits are not made with empty messgaes
 function updateCommitButtons() {
   const valid = Boolean(commitMessage?.value.trim());
 
@@ -238,6 +241,7 @@ function updateCommitButtons() {
   if (commitAll) commitAll.disabled = !valid;
 }
 
+// Actually commits file changes
 async function performCommit(commitAllChanges: boolean) {
   if (!currentRepoPath || !commitMessage || !commitDialog) return;
 
@@ -269,6 +273,7 @@ async function performCommit(commitAllChanges: boolean) {
   }
 }
 
+// Handles the toggling of show changes
 function updateDiffToggle(entry: TreeEntry | null) {
     if (!diffToggle || !diffToggleContainer) return;
 

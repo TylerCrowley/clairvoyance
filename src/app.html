@@ -17,15 +17,12 @@
     </div>
     <span id="status" class="status">No repository selected</span>
 </header>
-
 <main class="workspace">
-
     <section class="panel workspace-header">
         <div>
             <h2 id="repo-name">No repository open</h2>
             <p class="muted">Files and directories</p>
         </div>
-
         <div class="repository-actions">
             <div id="repo-status-summary"></div>
             <button id="commit-button" class="button" disabled>
@@ -33,28 +30,24 @@
             </button>
         </div>
     </section>
-
     <div class="workspace-body">
-
         <aside class="panel explorer-panel">
             <div class="panel-heading">
                 <h3>Explorer</h3>
             </div>
-
             <div id="tree" class="tree">
                 <p class="muted">
                     Open a repository to explore its files.
                 </p>
             </div>
         </aside>
-
         <section class="panel content-panel">
             <div class="panel-heading">
                 <div>
                     <h2 id="file-name">No file selected</h2>
                     <p id="file-path" class="muted"></p>
                 </div>
-                <div class = "file-actions">
+                <div class="file-actions">
                     <label id="diff-toggle-container" class="diff-toggle-container" hidden>
                         <span>Show Changes</span>
                         <input id="diff-toggle" type="checkbox">
@@ -72,27 +65,21 @@
             </div>
         </section>
     </div>
-
     <dialog id="commit-dialog">
         <div class="commit-dialog-content">
             <h2>Commit Changes</h2>
-
             <p class="muted">
                 Enter a commit message and choose which changes to commit.
             </p>
-
             <label for="commit-message">Commit message</label>
             <textarea id="commit-message" rows="4" placeholder="Describe your changes..."></textarea>
-
             <div class="commit-dialog-actions">
                 <button id="cancel-commit" class="button">
                     Cancel
                 </button>
-
                 <button id="commit-staged" class="button" disabled>
                     Commit Staged
                 </button>
-
                 <button id="commit-all" class="button" disabled>
                     Stage All &amp; Commit
                 </button>
