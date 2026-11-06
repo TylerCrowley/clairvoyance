@@ -91,19 +91,28 @@ stageButton?.addEventListener("click", async () => {
 });
 
 commitButton?.addEventListener("click", async () => {
-  if (!currentRepoPath || !selectedFile || !commitButton) return;
+  const message = window.prompt("Enter a commit message:");
 
-  const repoPath = currentRepoPath;
+  if (message === null) return;
+
+  if (!message.trim()) {
+    alert("Commit message cannot be empty.");
+    return;
+  }
+
+  if (!currentRepoPath) return;
 
   try {
-    await invoke("commit_changes", {
+    const commitId = await invoke<string>("commit_changes", {
       repoPath: currentRepoPath,
-      message: "commitMessage",
+      message: message.trim(),
     });
-    await loadRepository(repoPath);
+
+    console.log("Created commit:", commitId);
+    await loadRepository(currentRepoPath);
   } catch (error) {
-    console.error(`Failed to commit changes:`, error);
-    status.textContent = `Git operation failed: ${error}`;
+    console.error("Commit failed:", error);
+    status.textContent = `Commit failed: ${error}`;
   }
 });
 
