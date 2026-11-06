@@ -36,6 +36,11 @@ const selectButton = document.querySelector<HTMLButtonElement>("#select-repo");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-repo");
 const stageButton = document.querySelector<HTMLButtonElement>("#stage-button");
 const commitButton = document.querySelector<HTMLButtonElement>("#commit-button");
+const commitDialog = document.querySelector<HTMLDialogElement>("#commit-dialog");
+const commitMessage = document.querySelector<HTMLTextAreaElement>("#commit-message");
+const cancelCommit = document.querySelector<HTMLButtonElement>("#cancel-commit");
+const commitStaged = document.querySelector<HTMLButtonElement>("#commit-staged");
+const commitAll = document.querySelector<HTMLButtonElement>("#commit-all");
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
 
@@ -90,31 +95,29 @@ stageButton?.addEventListener("click", async () => {
   }
 });
 
-commitButton?.addEventListener("click", async () => {
-  const message = window.prompt("Enter a commit message:");
+commitButton?.addEventListener("click", () => {
+    if (!commitDialog || !commitMessage) return;
 
-  if (message === null) return;
+    commitMessage.value = "";
+    updateCommitButtons();
 
-  if (!message.trim()) {
-    alert("Commit message cannot be empty.");
-    return;
-  }
-
-  if (!currentRepoPath) return;
-
-  try {
-    const commitId = await invoke<string>("commit_changes", {
-      repoPath: currentRepoPath,
-      message: message.trim(),
-    });
-
-    console.log("Created commit:", commitId);
-    await loadRepository(currentRepoPath);
-  } catch (error) {
-    console.error("Commit failed:", error);
-    status.textContent = `Commit failed: ${error}`;
-  }
+    commitDialog.showModal();
+    commitMessage.focus();
 });
+
+cancelCommit?.addEventListener("click", () => {
+    commitDialog?.close();
+});
+
+commitStaged?.addEventListener("click", () => {
+    void performCommit(false);
+});
+
+commitAll?.addEventListener("click", () => {
+    void performCommit(true);
+});
+
+commitMessage?.addEventListener("input", updateCommitButtons);
 
 // Adds status totals to directories, makes it much easier to navigate
 function countChangedFiles(entry: TreeEntry): number {
@@ -145,6 +148,44 @@ function updateStageButton(entry: TreeEntry | null) {
   } else {
     stageButton.hidden = true;
   }
+}
+
+function updateCommitButtons() {
+    const valid = Boolean(commitMessage?.value.trim());
+
+    if (commitStaged) commitStaged.disabled = !valid;
+    if (commitAll) commitAll.disabled = !valid;
+}
+
+async function performCommit(commitAllChanges: boolean) {
+    if (!currentRepoPath || !commitMessage || !commitDialog) return;
+
+    const message = commitMessage.value.trim();
+    if (!message) return;
+
+    if (commitStaged) commitStaged.disabled = true;
+    if (commitAll) commitAll.disabled = true;
+    if (cancelCommit) cancelCommit.disabled = true;
+
+    try {
+        const commitId = await invoke<string>("commit_changes", {
+            repoPath: currentRepoPath,
+            message,
+            commitAll: commitAllChanges,
+        });
+
+        console.log("Created commit:", commitId);
+
+        await loadRepository(currentRepoPath);
+        commitDialog.close();
+
+    } catch (error) {
+        console.error("Commit failed:", error);
+        status.textContent = `Commit failed: ${error}`;
+    } finally {
+        if (cancelCommit) cancelCommit.disabled = false;
+        updateCommitButtons();
+    }
 }
 
 // This function makes sure the same file is selected when updating or reloading the repo
