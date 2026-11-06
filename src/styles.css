@@ -385,9 +385,9 @@ main.workspace {
 
 .line-number {
     display: inline-block;
-    width: 48px;
+    width: 36px;
     flex-shrink: 0;
-    padding-right: 12px;
+    padding-right: 8px;
     text-align: right;
     color: #666d7a;
     user-select: none;
@@ -422,8 +422,16 @@ main.workspace {
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
 }
+
+.file-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
 
 #commit-dialog {
     width: min(500px, calc(100% - 40px));
@@ -480,4 +488,76 @@ main.workspace {
     justify-content: flex-end;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.diff-added {
+    background: rgba(80, 183, 122, 0.15);
+    color: #50b77a;
+}
+
+.diff-removed {
+    background: rgba(224, 108, 117, 0.15);
+    color: #e06c75;
+}
+
+.diff-context {
+    color: inherit;
+}
+
+.diff-toggle-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.diff-toggle-container[hidden] {
+    display: none;
+}
+
+.diff-toggle-container input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.diff-toggle-slider {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+
+    background: #30343d;
+    border-radius: 20px;
+    transition: background 0.2s;
+}
+
+.diff-toggle-slider::before {
+    content: "";
+    position: absolute;
+
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    top: 3px;
+
+    background: #d1d5db;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.diff-toggle-container input:checked + .diff-toggle-slider {
+    background: #3b82a0;
+}
+
+.diff-toggle-container input:checked + .diff-toggle-slider::before {
+    transform: translateX(18px);
+}
+
+.diff-toggle-container input:focus-visible + .diff-toggle-slider {
+    outline: 2px solid #61afef;
+    outline-offset: 3px;
 }

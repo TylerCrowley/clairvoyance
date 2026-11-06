@@ -1,5 +1,5 @@
 // Rust libraries
-use git2::{Repository, Status, StatusOptions};
+use git2::{DiffFormat, DiffOptions, Repository, Status, StatusOptions};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -21,6 +21,14 @@ struct TreeEntry {
     unreadable: bool,
     status: Option<GitFileStatus>,
     children: Vec<TreeEntry>,
+}
+
+#[derive(serde::Serialize)]
+struct FileDiffLine {
+    old_line_number: Option<u32>,
+    new_line_number: Option<u32>,
+    line_type: String,
+    content: String,
 }
 
 // Reads the directory and creates the file tree structure
@@ -337,6 +345,79 @@ fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Resul
     Ok(commit_oid.to_string())
 }
 
+#[tauri::command]
+fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLine>, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let repo_root = repo
+        .workdir()
+        .ok_or("Repository has no working directory.")?;
+
+    let repo_root = std::fs::canonicalize(repo_root).map_err(|error| error.to_string())?;
+
+    let file = std::fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
+
+    let relative_path = file
+        .strip_prefix(&repo_root)
+        .map_err(|_| "File is outside the repository.")?;
+
+    if !file.is_file() {
+        return Err("Selected path is not a file.".to_string());
+    }
+
+    let head_tree = match repo.head() {
+        Ok(head) => Some(head.peel_to_tree().map_err(|error| error.to_string())?),
+        Err(error)
+            if matches!(
+                error.code(),
+                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
+            ) =>
+        {
+            None
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+
+    let mut options = DiffOptions::new();
+
+    options
+        .pathspec(relative_path)
+        .show_untracked_content(true)
+        .recurse_untracked_dirs(true)
+        .context_lines(3);
+
+    let diff = repo
+        .diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut options))
+        .map_err(|error| error.to_string())?;
+
+    let mut lines = Vec::new();
+
+    diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
+        let line_type = match line.origin() {
+            '+' => "added",
+            '-' => "removed",
+            ' ' => "context",
+            _ => return true,
+        };
+
+        let content = String::from_utf8_lossy(line.content())
+            .trim_end_matches(['\r', '\n'])
+            .to_string();
+
+        lines.push(FileDiffLine {
+            old_line_number: line.old_lineno(),
+            new_line_number: line.new_lineno(),
+            line_type: line_type.to_string(),
+            content,
+        });
+
+        true
+    })
+    .map_err(|error| error.to_string())?;
+
+    Ok(lines)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -349,6 +430,7 @@ pub fn run() {
             stage_file,
             unstage_file,
             commit_changes,
+            get_file_diff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

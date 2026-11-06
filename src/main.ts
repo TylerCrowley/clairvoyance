@@ -19,6 +19,13 @@ interface TreeEntry {
   children: TreeEntry[];
 }
 
+interface FileDiffLine {
+  old_line_number: number | null;
+  new_line_number: number | null;
+  line_type: "added" | "removed" | "context";
+  content: string;
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -41,8 +48,11 @@ const commitMessage = document.querySelector<HTMLTextAreaElement>("#commit-messa
 const cancelCommit = document.querySelector<HTMLButtonElement>("#cancel-commit");
 const commitStaged = document.querySelector<HTMLButtonElement>("#commit-staged");
 const commitAll = document.querySelector<HTMLButtonElement>("#commit-all");
+const diffToggle = document.querySelector<HTMLInputElement>("#diff-toggle");
+const diffToggleContainer = document.querySelector<HTMLLabelElement>("#diff-toggle-container");
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
+let showingDiff = false;
 
 // The button to open the system dialog and select a folder
 selectButton?.addEventListener("click", async () => {
@@ -96,28 +106,99 @@ stageButton?.addEventListener("click", async () => {
 });
 
 commitButton?.addEventListener("click", () => {
-    if (!commitDialog || !commitMessage) return;
+  if (!commitDialog || !commitMessage) return;
 
-    commitMessage.value = "";
-    updateCommitButtons();
+  commitMessage.value = "";
+  updateCommitButtons();
 
-    commitDialog.showModal();
-    commitMessage.focus();
+  commitDialog.showModal();
+  commitMessage.focus();
 });
 
 cancelCommit?.addEventListener("click", () => {
-    commitDialog?.close();
+  commitDialog?.close();
 });
 
 commitStaged?.addEventListener("click", () => {
-    void performCommit(false);
-});
-
-commitAll?.addEventListener("click", () => {
-    void performCommit(true);
+  void performCommit(false);
 });
 
 commitMessage?.addEventListener("input", updateCommitButtons);
+
+commitAll?.addEventListener("click", () => {
+  void performCommit(true);
+});
+
+diffToggle?.addEventListener("change", async () => {
+    if (!currentRepoPath || !selectedFile) {
+        showingDiff = false;
+        updateDiffToggle(null);
+        return;
+    }
+
+    showingDiff = diffToggle.checked;
+
+    const requestedPath = selectedFile.path;
+
+    if (showingDiff) {
+        try {
+            const changes = await invoke<FileDiffLine[]>("get_file_diff", {
+                repoPath: currentRepoPath,
+                filePath: requestedPath,
+            });
+
+            // Ignore stale results if selection changes during loading.
+            if (!showingDiff || selectedFile?.path !== requestedPath) {
+                return;
+            }
+
+            const pre = document.createElement("pre");
+            pre.className = "file-text";
+
+            for (const change of changes) {
+                const line = document.createElement("div");
+                line.className = `file-line diff-${change.line_type}`;
+
+                const oldLineNumber = document.createElement("span");
+                oldLineNumber.className = "line-number";
+                oldLineNumber.textContent =
+                    change.old_line_number?.toString() ?? "";
+
+                const newLineNumber = document.createElement("span");
+                newLineNumber.className = "line-number";
+                newLineNumber.textContent =
+                    change.new_line_number?.toString() ?? "";
+
+                const content = document.createElement("span");
+                content.className = "line-content";
+                content.textContent = change.content;
+
+                line.append(oldLineNumber, newLineNumber, content);
+                pre.appendChild(line);
+            }
+
+            const fileContent =
+                document.querySelector<HTMLDivElement>("#file-content");
+
+            fileContent?.replaceChildren(pre);
+
+        } catch (error) {
+            console.error("Failed to load diff:", error);
+            showingDiff = false;
+            updateDiffToggle(selectedFile);
+            status.textContent = `Failed to load changes: ${error}`;
+        }
+
+    } else {
+        const fileElement = Array.from(
+            treeContainer.querySelectorAll<HTMLElement>(".file")
+        ).find(element => element.dataset.path === requestedPath);
+
+        if (fileElement) {
+            await openFile(selectedFile, fileElement);
+        }
+    }
+});
 
 // Adds status totals to directories, makes it much easier to navigate
 function countChangedFiles(entry: TreeEntry): number {
@@ -151,41 +232,52 @@ function updateStageButton(entry: TreeEntry | null) {
 }
 
 function updateCommitButtons() {
-    const valid = Boolean(commitMessage?.value.trim());
+  const valid = Boolean(commitMessage?.value.trim());
 
-    if (commitStaged) commitStaged.disabled = !valid;
-    if (commitAll) commitAll.disabled = !valid;
+  if (commitStaged) commitStaged.disabled = !valid;
+  if (commitAll) commitAll.disabled = !valid;
 }
 
 async function performCommit(commitAllChanges: boolean) {
-    if (!currentRepoPath || !commitMessage || !commitDialog) return;
+  if (!currentRepoPath || !commitMessage || !commitDialog) return;
 
-    const message = commitMessage.value.trim();
-    if (!message) return;
+  const message = commitMessage.value.trim();
+  if (!message) return;
 
-    if (commitStaged) commitStaged.disabled = true;
-    if (commitAll) commitAll.disabled = true;
-    if (cancelCommit) cancelCommit.disabled = true;
+  if (commitStaged) commitStaged.disabled = true;
+  if (commitAll) commitAll.disabled = true;
+  if (cancelCommit) cancelCommit.disabled = true;
 
-    try {
-        const commitId = await invoke<string>("commit_changes", {
-            repoPath: currentRepoPath,
-            message,
-            commitAll: commitAllChanges,
-        });
+  try {
+    const commitId = await invoke<string>("commit_changes", {
+      repoPath: currentRepoPath,
+      message,
+      commitAll: commitAllChanges,
+    });
 
-        console.log("Created commit:", commitId);
+    console.log("Created commit:", commitId);
 
-        await loadRepository(currentRepoPath);
-        commitDialog.close();
+    await loadRepository(currentRepoPath);
+    commitDialog.close();
 
-    } catch (error) {
-        console.error("Commit failed:", error);
-        status.textContent = `Commit failed: ${error}`;
-    } finally {
-        if (cancelCommit) cancelCommit.disabled = false;
-        updateCommitButtons();
-    }
+  } catch (error) {
+    console.error("Commit failed:", error);
+    status.textContent = `Commit failed: ${error}`;
+  } finally {
+    if (cancelCommit) cancelCommit.disabled = false;
+    updateCommitButtons();
+  }
+}
+
+function updateDiffToggle(entry: TreeEntry | null) {
+    if (!diffToggle || !diffToggleContainer) return;
+
+    const hasChanges = Boolean(
+        entry?.status?.staged || entry?.status?.unstaged
+    );
+
+    diffToggleContainer.hidden = !hasChanges;
+    diffToggle.checked = hasChanges && showingDiff;
 }
 
 // This function makes sure the same file is selected when updating or reloading the repo
@@ -487,6 +579,8 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   element.classList.add("selected");
 
   selectedFile = entry;
+  showingDiff = false;
+  updateDiffToggle(entry);
   updateStageButton(entry);
 
   fileName.textContent = entry.name;
@@ -498,6 +592,13 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
       repoPath: currentRepoPath,
       filePath: entry.path,
     });
+
+    const diff = await invoke<FileDiffLine[]>("get_file_diff", {
+      repoPath: currentRepoPath,
+      filePath: entry.path,
+    });
+
+    console.table(diff);
 
     const pre = document.createElement("pre");
     pre.className = "file-text";

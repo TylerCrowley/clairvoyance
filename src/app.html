@@ -54,10 +54,16 @@
                     <h2 id="file-name">No file selected</h2>
                     <p id="file-path" class="muted"></p>
                 </div>
-
-                <button id="stage-button" class="button" hidden>
-                    Stage File
-                </button>
+                <div class = "file-actions">
+                    <label id="diff-toggle-container" class="diff-toggle-container" hidden>
+                        <span>Show Changes</span>
+                        <input id="diff-toggle" type="checkbox">
+                        <span class="diff-toggle-slider"></span>
+                    </label>
+                    <button id="stage-button" class="button" hidden>
+                        Stage File
+                    </button>
+                </div>
             </div>
             <div id="file-content" class="file-content">
                 <p class="muted">
