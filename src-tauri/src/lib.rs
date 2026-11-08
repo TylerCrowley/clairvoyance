@@ -1,7 +1,7 @@
 // Rust libraries
 use git2::{DiffFormat, DiffOptions, Repository, Sort, Status, StatusOptions};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -39,6 +39,16 @@ struct CommitInfo {
     author: String,
     timestamp: i64,
     parents: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+struct RepositorySummary {
+    current_branch: Option<String>,
+    changed_files: usize,
+    total_commits: usize,
+    branch_count: usize,
+    contributor_count: usize,
+    latest_commit: Option<String>,
 }
 
 // Reads the directory and creates the file tree structure
@@ -462,6 +472,88 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
     Ok(commits)
 }
 
+#[tauri::command]
+fn get_repository_summary(repo_path: String) -> Result<RepositorySummary, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let head_commit = match repo.head() {
+        Ok(head) => Some(head.peel_to_commit().map_err(|error| error.to_string())?),
+        Err(error)
+            if matches!(
+                error.code(),
+                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
+            ) =>
+        {
+            None
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+
+    let current_branch = match repo.head() {
+        Ok(head) if head.is_branch() => Some(
+            head.shorthand()
+                .map_err(|error| error.to_string())?
+                .to_string(),
+        ),
+        Ok(_) => None, // Detached HEAD
+        Err(error) if error.code() == git2::ErrorCode::UnbornBranch => None,
+        Err(error) => return Err(error.to_string()),
+    };
+
+    let statuses = get_repository_statuses(&repo)?;
+
+    let branches = repo
+        .branches(Some(git2::BranchType::Local))
+        .map_err(|error| error.to_string())?;
+    let branch_count = branches
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?
+        .len();
+
+    let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
+    revwalk.push_head().map_err(|error| error.to_string())?;
+    let mut total_commits = 0;
+    let mut contributors = HashSet::new();
+    if let Some(ref commit) = head_commit {
+        let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
+        revwalk
+            .push(commit.id())
+            .map_err(|error| error.to_string())?;
+
+        for oid_result in revwalk {
+            let oid = oid_result.map_err(|error| error.to_string())?;
+            let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
+            total_commits += 1;
+            let author = commit.author();
+            if let Ok(email) = author.email() {
+                contributors.insert(email.to_string());
+            }
+        }
+    }
+    let contributor_count = contributors.len();
+
+    let latest_commit = match repo.head() {
+        Ok(head) => {
+            let commit = head.peel_to_commit().map_err(|error| error.to_string())?;
+
+            Some(commit.id().to_string())
+        }
+        Err(error) if error.code() == git2::ErrorCode::UnbornBranch => None,
+        Err(error) => return Err(error.to_string()),
+    };
+
+    let summary = RepositorySummary {
+        current_branch: current_branch,
+        changed_files: statuses.len(),
+        total_commits: total_commits,
+        branch_count: branch_count,
+        contributor_count: contributor_count,
+        latest_commit: latest_commit,
+    };
+
+    Ok(summary)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -476,6 +568,7 @@ pub fn run() {
             commit_changes,
             get_file_diff,
             get_commit_history,
+            get_repository_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

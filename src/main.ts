@@ -34,6 +34,15 @@ interface CommitInfo {
   parents: string[];
 }
 
+interface RepositorySummary {
+    current_branch: string | null;
+    changed_files: number;
+    total_commits: number;
+    branch_count: number;
+    contributor_count: number;
+    latest_commit: string | null;
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -58,9 +67,11 @@ const commitStaged = document.querySelector<HTMLButtonElement>("#commit-staged")
 const commitAll = document.querySelector<HTMLButtonElement>("#commit-all");
 const diffToggle = document.querySelector<HTMLInputElement>("#diff-toggle");
 const diffToggleContainer = document.querySelector<HTMLLabelElement>("#diff-toggle-container");
+const overviewButton = document.querySelector<HTMLButtonElement>("#overview-button");
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
 let showingDiff = false;
+type WorkspaceView = "file" | "overview";
 
 // The button to open the system dialog and select a folder
 selectButton?.addEventListener("click", async () => {
@@ -208,6 +219,10 @@ diffToggle?.addEventListener("change", async () => {
       await openFile(selectedFile, fileElement);
     }
   }
+});
+
+overviewButton?.addEventListener("click", () => {
+    showWorkspaceView("overview");
 });
 
 // Adds status totals to directories, makes it much easier to navigate
@@ -411,14 +426,8 @@ async function loadRepository(path: string) {
   try {
     const root = await invoke<TreeEntry>("get_repository_tree", { path });
 
-    try {
-      const history = await invoke<CommitInfo[]>("get_commit_history", {
-        repoPath: path,
-      });
-      console.table(history);
-    } catch (error) {
-      console.error("Failed to retrieve commit history:", error);
-    }
+    await loadRepositorySummary(path);
+    await loadCommitHistory(path);
 
     const selectedPath = selectedFile?.path;
 
@@ -468,11 +477,18 @@ async function loadRepository(path: string) {
       refreshButton.disabled = false;
     }
 
+    if(overviewButton) {
+      overviewButton.disabled = false
+    }
+
   } catch (error) {
     status.textContent = "Failed to load repository";
     console.error("Failed to load repository:", error);
     if (refreshButton && !currentRepoPath) {
       refreshButton.disabled = true;
+    }
+    if (overviewButton && !currentRepoPath) {
+      overviewButton.disabled = true;
     }
     treeContainer.textContent = String(error);
   }
@@ -605,6 +621,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   showingDiff = false;
   updateDiffToggle(entry);
   updateStageButton(entry);
+  showWorkspaceView("file");
 
   fileName.textContent = entry.name;
   filePath.textContent = entry.path;
@@ -648,4 +665,113 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   } catch (error) {
     fileContent.textContent = `Unable to open file: ${error}`;
   }
+}
+
+function showWorkspaceView(view: WorkspaceView) {
+    const fileView = document.querySelector<HTMLElement>("#file-view");
+    const overview = document.querySelector<HTMLElement>("#repository-overview");
+
+    if (!fileView || !overview) return;
+
+    fileView.hidden = view !== "file";
+    overview.hidden = view !== "overview";
+}
+
+async function loadCommitHistory(repoPath: string) {
+    const tableBody = document.querySelector<HTMLTableSectionElement>(
+        "#commit-history-body"
+    );
+
+    if (!tableBody) return;
+
+    tableBody.textContent = "Loading commit history...";
+
+    try {
+        const commits = await invoke<CommitInfo[]>("get_commit_history", {
+            repoPath,
+        });
+
+        tableBody.replaceChildren();
+
+        for (const commit of commits) {
+            const row = document.createElement("tr");
+
+            const message = document.createElement("td");
+            message.textContent = commit.message;
+
+            const hash = document.createElement("td");
+            hash.textContent = commit.hash.substring(0, 7);
+            hash.title = commit.hash;
+
+            const author = document.createElement("td");
+            author.textContent = commit.author;
+
+            const date = document.createElement("td");
+            date.textContent = new Date(
+                commit.timestamp * 1000
+            ).toLocaleString();
+
+            row.append(message, hash, author, date);
+            tableBody.appendChild(row);
+        }
+
+        if (commits.length === 0) {
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+
+            cell.colSpan = 4;
+            cell.textContent = "No commits found.";
+
+            row.appendChild(cell);
+            tableBody.appendChild(row);
+        }
+
+    } catch (error) {
+        console.error("Failed to load commit history:", error);
+
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+
+        cell.colSpan = 4;
+        cell.textContent = `Unable to load commit history: ${error}`;
+
+        row.appendChild(cell);
+        tableBody.replaceChildren(row);
+    }
+}
+
+async function loadRepositorySummary(repoPath: string) {
+    const commits = document.querySelector<HTMLElement>("#summary-commits");
+    const branches = document.querySelector<HTMLElement>("#summary-branches");
+    const contributors = document.querySelector<HTMLElement>("#summary-contributors");
+    const currentBranch = document.querySelector<HTMLElement>("#summary-current-branch");
+    const changes = document.querySelector<HTMLElement>("#summary-changes");
+    const latestCommit = document.querySelector<HTMLElement>("#summary-latest-commit");
+
+    if (!commits || !branches || !contributors ||
+        !currentBranch || !changes || !latestCommit) {
+        return;
+    }
+
+    try {
+        const summary = await invoke<RepositorySummary>("get_repository_summary", {
+            repoPath,
+        });
+        commits.textContent = summary.total_commits.toLocaleString();
+        branches.textContent = summary.branch_count.toLocaleString();
+        contributors.textContent = summary.contributor_count.toLocaleString();
+        currentBranch.textContent =
+            summary.current_branch ?? "Detached HEAD / No commits";
+        changes.textContent = summary.changed_files === 0
+            ? "Clean"
+            : `${summary.changed_files} changed file${summary.changed_files === 1 ? "" : "s"}`;
+        latestCommit.textContent = summary.latest_commit
+            ? summary.latest_commit.substring(0, 7)
+            : "No commits";
+        if (summary.latest_commit) {
+            latestCommit.title = summary.latest_commit;
+        }
+    } catch (error) {
+        console.error("Failed to load repository summary:", error);
+    }
 }
