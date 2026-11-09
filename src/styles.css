@@ -703,8 +703,6 @@ main.workspace {
     color: #61afef;
 }
 
-/* Repository Summary */
-
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -757,4 +755,67 @@ main.workspace {
     .summary-grid {
         grid-template-columns: 1fr;
     }
+}
+
+.branch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.branch-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 10px 12px;
+    border: 1px solid #30343d;
+    border-radius: 6px;
+    background: #12151b;
+}
+
+.branch-row.current {
+    border-color: #50b77a;
+}
+
+.branch-hash {
+    margin-left: auto;
+    font-family: monospace;
+    color: #a0a6b2;
+}
+
+.branch-current {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(80, 183, 122, 0.15);
+    color: #50b77a;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.commit-graph-cell {
+    width: 40px;
+    min-width: 40px;
+    padding: 0 !important;
+    text-align: center;
+}
+
+.commit-graph-cell svg {
+    display: block;
+    width: 40px;
+    height: 100%;
+    min-height: 40px;
+    margin: 0 auto;
+}
+
+.commit-table tbody tr {
+    height: 40px;
+}
+
+.commit-table td {
+    vertical-align: middle;
+}
+
+.commit-table td:nth-child(2) {
+    overflow-wrap: anywhere;
 }

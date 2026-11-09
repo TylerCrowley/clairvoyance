@@ -35,12 +35,18 @@ interface CommitInfo {
 }
 
 interface RepositorySummary {
-    current_branch: string | null;
-    changed_files: number;
-    total_commits: number;
-    branch_count: number;
-    contributor_count: number;
-    latest_commit: string | null;
+  current_branch: string | null;
+  changed_files: number;
+  total_commits: number;
+  branch_count: number;
+  contributor_count: number;
+  latest_commit: string | null;
+}
+
+interface BranchInfo {
+  name: string;
+  is_current: boolean;
+  commit_hash: string | null;
 }
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -222,7 +228,7 @@ diffToggle?.addEventListener("change", async () => {
 });
 
 overviewButton?.addEventListener("click", () => {
-    showWorkspaceView("overview");
+  showWorkspaceView("overview");
 });
 
 // Adds status totals to directories, makes it much easier to navigate
@@ -428,6 +434,7 @@ async function loadRepository(path: string) {
 
     await loadRepositorySummary(path);
     await loadCommitHistory(path);
+    await loadLocalBranches(path);
 
     const selectedPath = selectedFile?.path;
 
@@ -477,7 +484,7 @@ async function loadRepository(path: string) {
       refreshButton.disabled = false;
     }
 
-    if(overviewButton) {
+    if (overviewButton) {
       overviewButton.disabled = false
     }
 
@@ -668,110 +675,203 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
 }
 
 function showWorkspaceView(view: WorkspaceView) {
-    const fileView = document.querySelector<HTMLElement>("#file-view");
-    const overview = document.querySelector<HTMLElement>("#repository-overview");
+  const fileView = document.querySelector<HTMLElement>("#file-view");
+  const overview = document.querySelector<HTMLElement>("#repository-overview");
 
-    if (!fileView || !overview) return;
+  if (!fileView || !overview) return;
 
-    fileView.hidden = view !== "file";
-    overview.hidden = view !== "overview";
+  fileView.hidden = view !== "file";
+  overview.hidden = view !== "overview";
 }
 
 async function loadCommitHistory(repoPath: string) {
-    const tableBody = document.querySelector<HTMLTableSectionElement>(
-        "#commit-history-body"
-    );
+  const tableBody = document.querySelector<HTMLTableSectionElement>(
+    "#commit-history-body"
+  );
 
-    if (!tableBody) return;
+  if (!tableBody) return;
 
-    tableBody.textContent = "Loading commit history...";
+  tableBody.textContent = "Loading commit history...";
 
-    try {
-        const commits = await invoke<CommitInfo[]>("get_commit_history", {
-            repoPath,
-        });
+  try {
+    const commits = await invoke<CommitInfo[]>("get_commit_history", {
+      repoPath,
+    });
 
-        tableBody.replaceChildren();
+    tableBody.replaceChildren();
 
-        for (const commit of commits) {
-            const row = document.createElement("tr");
+    commits.forEach((commit, index) => {
+      const row = document.createElement("tr");
 
-            const message = document.createElement("td");
-            message.textContent = commit.message;
+      const graphCell = document.createElement("td");
+      graphCell.className = "commit-graph-cell";
 
-            const hash = document.createElement("td");
-            hash.textContent = commit.hash.substring(0, 7);
-            hash.title = commit.hash;
+      const graph = createCommitGraphNode(
+        index === 0,
+        index === commits.length - 1
+      );
 
-            const author = document.createElement("td");
-            author.textContent = commit.author;
+      graphCell.appendChild(graph);
 
-            const date = document.createElement("td");
-            date.textContent = new Date(
-                commit.timestamp * 1000
-            ).toLocaleString();
+      const message = document.createElement("td");
+      message.textContent = commit.message;
 
-            row.append(message, hash, author, date);
-            tableBody.appendChild(row);
-        }
+      const hash = document.createElement("td");
+      hash.textContent = commit.hash.substring(0, 7);
+      hash.title = commit.hash;
 
-        if (commits.length === 0) {
-            const row = document.createElement("tr");
-            const cell = document.createElement("td");
+      const author = document.createElement("td");
+      author.textContent = commit.author;
 
-            cell.colSpan = 4;
-            cell.textContent = "No commits found.";
+      const date = document.createElement("td");
+      date.textContent = new Date(
+        commit.timestamp * 1000
+      ).toLocaleString();
 
-            row.appendChild(cell);
-            tableBody.appendChild(row);
-        }
+      row.append(graphCell, message, hash, author, date);
+      tableBody.appendChild(row);
+    });
 
-    } catch (error) {
-        console.error("Failed to load commit history:", error);
+    if (commits.length === 0) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
 
-        const row = document.createElement("tr");
-        const cell = document.createElement("td");
+      cell.colSpan = 4;
+      cell.textContent = "No commits found.";
 
-        cell.colSpan = 4;
-        cell.textContent = `Unable to load commit history: ${error}`;
-
-        row.appendChild(cell);
-        tableBody.replaceChildren(row);
+      row.appendChild(cell);
+      tableBody.appendChild(row);
     }
+
+  } catch (error) {
+    console.error("Failed to load commit history:", error);
+
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+
+    cell.colSpan = 4;
+    cell.textContent = `Unable to load commit history: ${error}`;
+
+    row.appendChild(cell);
+    tableBody.replaceChildren(row);
+  }
 }
 
 async function loadRepositorySummary(repoPath: string) {
-    const commits = document.querySelector<HTMLElement>("#summary-commits");
-    const branches = document.querySelector<HTMLElement>("#summary-branches");
-    const contributors = document.querySelector<HTMLElement>("#summary-contributors");
-    const currentBranch = document.querySelector<HTMLElement>("#summary-current-branch");
-    const changes = document.querySelector<HTMLElement>("#summary-changes");
-    const latestCommit = document.querySelector<HTMLElement>("#summary-latest-commit");
+  const commits = document.querySelector<HTMLElement>("#summary-commits");
+  const branches = document.querySelector<HTMLElement>("#summary-branches");
+  const contributors = document.querySelector<HTMLElement>("#summary-contributors");
+  const currentBranch = document.querySelector<HTMLElement>("#summary-current-branch");
+  const changes = document.querySelector<HTMLElement>("#summary-changes");
+  const latestCommit = document.querySelector<HTMLElement>("#summary-latest-commit");
 
-    if (!commits || !branches || !contributors ||
-        !currentBranch || !changes || !latestCommit) {
-        return;
+  if (!commits || !branches || !contributors ||
+    !currentBranch || !changes || !latestCommit) {
+    return;
+  }
+
+  try {
+    const summary = await invoke<RepositorySummary>("get_repository_summary", {
+      repoPath,
+    });
+    commits.textContent = summary.total_commits.toLocaleString();
+    branches.textContent = summary.branch_count.toLocaleString();
+    contributors.textContent = summary.contributor_count.toLocaleString();
+    currentBranch.textContent =
+      summary.current_branch ?? "Detached HEAD / No commits";
+    changes.textContent = summary.changed_files === 0
+      ? "Clean"
+      : `${summary.changed_files} changed file${summary.changed_files === 1 ? "" : "s"}`;
+    latestCommit.textContent = summary.latest_commit
+      ? summary.latest_commit.substring(0, 7)
+      : "No commits";
+    if (summary.latest_commit) {
+      latestCommit.title = summary.latest_commit;
+    }
+  } catch (error) {
+    console.error("Failed to load repository summary:", error);
+  }
+}
+
+async function loadLocalBranches(repoPath: string) {
+  const branchList = document.querySelector<HTMLDivElement>("#branch-list");
+  if (!branchList) return;
+
+  branchList.textContent = "Loading branches...";
+
+  try {
+    const branches = await invoke<BranchInfo[]>("get_local_branches", {
+      repoPath,
+    });
+
+    branchList.replaceChildren();
+
+    for (const branch of branches) {
+      const row = document.createElement("div");
+      row.className = "branch-row";
+
+      if (branch.is_current) {
+        row.classList.add("current");
+      }
+
+      const name = document.createElement("span");
+      name.textContent = branch.name;
+
+      const hash = document.createElement("span");
+      hash.className = "branch-hash";
+      hash.textContent = branch.commit_hash?.substring(0, 7) ?? "—";
+
+      row.appendChild(name);
+      row.appendChild(hash);
+
+      if (branch.is_current) {
+        const badge = document.createElement("span");
+        badge.className = "branch-current";
+        badge.textContent = "Current";
+        row.appendChild(badge);
+      }
+
+      branchList.appendChild(row);
     }
 
-    try {
-        const summary = await invoke<RepositorySummary>("get_repository_summary", {
-            repoPath,
-        });
-        commits.textContent = summary.total_commits.toLocaleString();
-        branches.textContent = summary.branch_count.toLocaleString();
-        contributors.textContent = summary.contributor_count.toLocaleString();
-        currentBranch.textContent =
-            summary.current_branch ?? "Detached HEAD / No commits";
-        changes.textContent = summary.changed_files === 0
-            ? "Clean"
-            : `${summary.changed_files} changed file${summary.changed_files === 1 ? "" : "s"}`;
-        latestCommit.textContent = summary.latest_commit
-            ? summary.latest_commit.substring(0, 7)
-            : "No commits";
-        if (summary.latest_commit) {
-            latestCommit.title = summary.latest_commit;
-        }
-    } catch (error) {
-        console.error("Failed to load repository summary:", error);
+    if (branches.length === 0) {
+      branchList.textContent = "No local branches found.";
     }
+
+  } catch (error) {
+    console.error("Failed to load branches:", error);
+    branchList.textContent = `Unable to load branches: ${error}`;
+  }
+}
+
+function createCommitGraphNode(
+  isFirst: boolean,
+  isLast: boolean
+): SVGSVGElement {
+  const svgNS = "http://www.w3.org/2000/svg";
+
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("width", "40");
+  svg.setAttribute("height", "40");
+  svg.setAttribute("viewBox", "0 0 40 40");
+
+  const line = document.createElementNS(svgNS, "line");
+
+  line.setAttribute("x1", "20");
+  line.setAttribute("x2", "20");
+  line.setAttribute("y1", isFirst ? "20" : "0");
+  line.setAttribute("y2", isLast ? "20" : "40");
+  line.setAttribute("stroke", "#61afef");
+  line.setAttribute("stroke-width", "2");
+
+  const circle = document.createElementNS(svgNS, "circle");
+
+  circle.setAttribute("cx", "20");
+  circle.setAttribute("cy", "20");
+  circle.setAttribute("r", "5");
+  circle.setAttribute("fill", "#61afef");
+
+  svg.append(line, circle);
+
+  return svg;
 }
