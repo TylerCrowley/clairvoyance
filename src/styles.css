@@ -794,18 +794,14 @@ main.workspace {
 }
 
 .commit-graph-cell {
-    width: 40px;
-    min-width: 40px;
     padding: 0 !important;
-    text-align: center;
+    white-space: nowrap;
 }
 
 .commit-graph-cell svg {
     display: block;
-    width: 40px;
-    height: 100%;
-    min-height: 40px;
-    margin: 0 auto;
+    height: 40px;
+    margin: 0;
 }
 
 .commit-table tbody tr {

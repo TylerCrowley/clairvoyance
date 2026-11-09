@@ -49,6 +49,12 @@ interface BranchInfo {
   commit_hash: string | null;
 }
 
+interface GraphCommit {
+  commit: CommitInfo;
+  row: number;
+  lane: number;
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -78,6 +84,7 @@ let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
 let showingDiff = false;
 type WorkspaceView = "file" | "overview";
+const activeLanes: (string | null)[] = [];
 
 // The button to open the system dialog and select a folder
 selectButton?.addEventListener("click", async () => {
@@ -684,6 +691,55 @@ function showWorkspaceView(view: WorkspaceView) {
   overview.hidden = view !== "overview";
 }
 
+function calculateGraphLanes(commits: CommitInfo[]): GraphCommit[] {
+  const activeLanes: (string | null)[] = [];
+  const graphCommits: GraphCommit[] = [];
+
+  function findAvailableLane(): number {
+    const available = activeLanes.indexOf(null);
+
+    if (available !== -1) {
+      return available;
+    }
+
+    activeLanes.push(null);
+    return activeLanes.length - 1;
+  }
+
+  commits.forEach((commit, row) => {
+    let lane = activeLanes.indexOf(commit.hash);
+
+    if (lane === -1) {
+      lane = findAvailableLane();
+    }
+
+    graphCommits.push({
+      commit,
+      row,
+      lane,
+    });
+
+    activeLanes[lane] = null;
+
+    const firstParent = commit.parents[0];
+
+    if (firstParent && !activeLanes.includes(firstParent)) {
+      activeLanes[lane] = firstParent;
+    }
+
+    for (const parent of commit.parents.slice(1)) {
+      if (activeLanes.includes(parent)) {
+        continue;
+      }
+
+      const parentLane = findAvailableLane();
+      activeLanes[parentLane] = parent;
+    }
+  });
+
+  return graphCommits;
+}
+
 async function loadCommitHistory(repoPath: string) {
   const tableBody = document.querySelector<HTMLTableSectionElement>(
     "#commit-history-body"
@@ -694,9 +750,24 @@ async function loadCommitHistory(repoPath: string) {
   tableBody.textContent = "Loading commit history...";
 
   try {
+    console.log("Requesting commit history...");
+
     const commits = await invoke<CommitInfo[]>("get_commit_history", {
       repoPath,
     });
+
+    console.log("Commits received:", commits.length);
+    const graphCommits = calculateGraphLanes(commits);
+    console.log("Graph commits:", graphCommits);
+    console.table(
+      graphCommits.map(({ commit, row, lane }) => ({
+        row,
+        lane,
+        hash: commit.hash.substring(0, 7),
+        message: commit.message,
+        parents: commit.parents.map(hash => hash.substring(0, 7)).join(", "),
+      }))
+    );
 
     tableBody.replaceChildren();
 
@@ -706,11 +777,7 @@ async function loadCommitHistory(repoPath: string) {
       const graphCell = document.createElement("td");
       graphCell.className = "commit-graph-cell";
 
-      const graph = createCommitGraphNode(
-        index === 0,
-        index === commits.length - 1
-      );
-
+      const graph = createCommitGraphNode(graphCommits[index].lane);
       graphCell.appendChild(graph);
 
       const message = document.createElement("td");
@@ -844,34 +911,24 @@ async function loadLocalBranches(repoPath: string) {
   }
 }
 
-function createCommitGraphNode(
-  isFirst: boolean,
-  isLast: boolean
-): SVGSVGElement {
+function createCommitGraphNode(lane: number): SVGSVGElement {
   const svgNS = "http://www.w3.org/2000/svg";
 
   const svg = document.createElementNS(svgNS, "svg");
-  svg.setAttribute("width", "40");
+
+  const x = 20 + lane * 24;
+
+  svg.setAttribute("width", String(x + 20));
   svg.setAttribute("height", "40");
-  svg.setAttribute("viewBox", "0 0 40 40");
-
-  const line = document.createElementNS(svgNS, "line");
-
-  line.setAttribute("x1", "20");
-  line.setAttribute("x2", "20");
-  line.setAttribute("y1", isFirst ? "20" : "0");
-  line.setAttribute("y2", isLast ? "20" : "40");
-  line.setAttribute("stroke", "#61afef");
-  line.setAttribute("stroke-width", "2");
+  svg.setAttribute("viewBox", `0 0 ${x + 20} 40`);
 
   const circle = document.createElementNS(svgNS, "circle");
-
-  circle.setAttribute("cx", "20");
+  circle.setAttribute("cx", String(x));
   circle.setAttribute("cy", "20");
   circle.setAttribute("r", "5");
   circle.setAttribute("fill", "#61afef");
 
-  svg.append(line, circle);
+  svg.appendChild(circle);
 
   return svg;
 }
