@@ -127,6 +127,38 @@
                                 <tbody id="commit-history-body"></tbody>
                             </table>
                         </div>
+                        <div id="commit-details" class="commit-details" hidden>
+                            <div class="commit-details-header">
+                                <h3>Commit Details</h3>
+                            </div>
+
+                            <div class="commit-details-content">
+                                <div>
+                                    <span class="muted">Message</span>
+                                    <p id="detail-message"></p>
+                                </div>
+
+                                <div>
+                                    <span class="muted">Hash</span>
+                                    <code id="detail-hash"></code>
+                                </div>
+
+                                <div>
+                                    <span class="muted">Author</span>
+                                    <span id="detail-author"></span>
+                                </div>
+
+                                <div>
+                                    <span class="muted">Date</span>
+                                    <span id="detail-date"></span>
+                                </div>
+
+                                <div>
+                                    <span class="muted">Parents</span>
+                                    <div id="detail-parents"></div>
+                                </div>
+                            </div>
+                        </div>
                     </details>
                     <details id="repository-branches" class="overview-section" open>
                         <summary>

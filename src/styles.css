@@ -796,12 +796,20 @@ main.workspace {
 .commit-graph-cell {
     padding: 0 !important;
     white-space: nowrap;
+    vertical-align: middle;
 }
 
 .commit-graph-cell svg {
     display: block;
+    width: auto;
     height: 40px;
     margin: 0;
+}
+
+.commit-table td.commit-graph-cell {
+    border-bottom: none;
+    padding: 0 !important;
+    position: relative;
 }
 
 .commit-table tbody tr {
@@ -814,4 +822,126 @@ main.workspace {
 
 .commit-table td:nth-child(2) {
     overflow-wrap: anywhere;
+}
+
+.table-container {
+    position: relative;
+    overflow-x: auto;
+}
+
+.commit-graph-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Selectable commit history */
+
+.commit-history-row {
+    cursor: pointer;
+}
+
+.commit-history-row.selected {
+    background: #293746;
+}
+
+.commit-history-row.selected:hover {
+    background: #314355;
+}
+
+/* Commit details */
+
+.commit-details {
+    margin: 0 0 16px;
+    padding: 20px;
+    border: 1px solid #30343d;
+    border-radius: 8px;
+    background: #12151b;
+}
+
+.commit-details[hidden] {
+    display: none;
+}
+
+.commit-details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.commit-details-header h3 {
+    margin: 0;
+}
+
+.commit-details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.commit-details-content > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+}
+
+.commit-details-content > div > :last-child {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+#detail-message {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+#detail-hash {
+    color: #61afef;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+#detail-parents {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.commit-parent {
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: #252a33;
+    color: #61afef;
+}
+
+.commit-details[hidden] {
+    display: none;
+}
+
+.commit-details:not([hidden]) {
+    display: block;
+}
+
+.commit-details-row td {
+    padding: 12px !important;
+    background: #151922;
+    border-bottom: 1px solid #30343d;
+}
+
+.commit-details {
+    margin: 0;
+    padding: 20px;
+    border: 1px solid #30343d;
+    border-radius: 8px;
+    background: #12151b;
+}
+
+.commit-details-row:hover {
+    background: inherit;
 }

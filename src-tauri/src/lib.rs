@@ -458,16 +458,13 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
     revwalk
         .push_glob("refs/heads/*")
         .map_err(|error| error.to_string())?;
-    // revwalk
-    //     .push_head()
-    //     .map_err(|error| error.to_string())?;
-
-    println!("Starting revision walk...");
+    revwalk
+        .push_glob("refs/remotes/*")
+        .map_err(|error| error.to_string())?;
 
     let mut commits = Vec::new();
     for oid_result in revwalk.take(50) {
         let oid = oid_result.map_err(|error| error.to_string())?;
-        println!("Found commit: {}", oid);
         let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
 
         let info = CommitInfo {
@@ -484,7 +481,6 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
 
         commits.push(info);
     }
-    println!("Total commits retrieved: {}", commits.len());
 
     Ok(commits)
 }

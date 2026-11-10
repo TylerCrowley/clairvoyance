@@ -55,6 +55,18 @@ interface GraphCommit {
   lane: number;
 }
 
+interface GraphConnection {
+  fromRow: number;
+  fromLane: number;
+  toRow: number;
+  toLane: number;
+}
+
+interface GraphPoint {
+  x: number;
+  y: number;
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -83,8 +95,21 @@ const overviewButton = document.querySelector<HTMLButtonElement>("#overview-butt
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
 let showingDiff = false;
+let currentGraphCommits: GraphCommit[] = [];
+let currentGraphConnections: GraphConnection[] = [];
 type WorkspaceView = "file" | "overview";
-const activeLanes: (string | null)[] = [];
+const graphColors = [
+  "#61afef",
+  "#50b77a",
+  "#d9a441",
+  "#e3aa75",
+  "#e06c75",
+  "#c678dd",
+];
+
+function getGraphColor(lane: number): string {
+  return graphColors[lane % graphColors.length];
+}
 
 // The button to open the system dialog and select a folder
 selectButton?.addEventListener("click", async () => {
@@ -236,6 +261,7 @@ diffToggle?.addEventListener("change", async () => {
 
 overviewButton?.addEventListener("click", () => {
   showWorkspaceView("overview");
+  updateCommitGraph();
 });
 
 // Adds status totals to directories, makes it much easier to navigate
@@ -647,12 +673,12 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
       filePath: entry.path,
     });
 
-    const diff = await invoke<FileDiffLine[]>("get_file_diff", {
-      repoPath: currentRepoPath,
-      filePath: entry.path,
-    });
+    // const diff = await invoke<FileDiffLine[]>("get_file_diff", {
+    //   repoPath: currentRepoPath,
+    //   filePath: entry.path,
+    // });
 
-    console.table(diff);
+    // console.table(diff);
 
     const pre = document.createElement("pre");
     pre.className = "file-text";
@@ -740,6 +766,33 @@ function calculateGraphLanes(commits: CommitInfo[]): GraphCommit[] {
   return graphCommits;
 }
 
+function calculateGraphConnections(graphCommits: GraphCommit[]): GraphConnection[] {
+  const connections: GraphConnection[] = [];
+
+  const commitPositions = new Map<string, GraphCommit>();
+
+  for (const graphCommit of graphCommits) {
+    commitPositions.set(graphCommit.commit.hash, graphCommit);
+  }
+
+  for (const graphCommit of graphCommits) {
+    for (const parentHash of graphCommit.commit.parents) {
+      const parent = commitPositions.get(parentHash);
+
+      if (!parent) continue;
+
+      connections.push({
+        fromRow: graphCommit.row,
+        fromLane: graphCommit.lane,
+        toRow: parent.row,
+        toLane: parent.lane,
+      });
+    }
+  }
+
+  return connections;
+}
+
 async function loadCommitHistory(repoPath: string) {
   const tableBody = document.querySelector<HTMLTableSectionElement>(
     "#commit-history-body"
@@ -747,38 +800,70 @@ async function loadCommitHistory(repoPath: string) {
 
   if (!tableBody) return;
 
+  const details = document.querySelector<HTMLElement>("#commit-details");
+  if (details) details.hidden = true;
+
   tableBody.textContent = "Loading commit history...";
 
   try {
-    console.log("Requesting commit history...");
-
     const commits = await invoke<CommitInfo[]>("get_commit_history", {
       repoPath,
     });
 
-    console.log("Commits received:", commits.length);
-    const graphCommits = calculateGraphLanes(commits);
-    console.log("Graph commits:", graphCommits);
-    console.table(
-      graphCommits.map(({ commit, row, lane }) => ({
-        row,
-        lane,
-        hash: commit.hash.substring(0, 7),
-        message: commit.message,
-        parents: commit.parents.map(hash => hash.substring(0, 7)).join(", "),
-      }))
-    );
+    currentGraphCommits = calculateGraphLanes(commits);
+    currentGraphConnections = calculateGraphConnections(currentGraphCommits);
+
+    const graphCommits = currentGraphCommits;
+    const graphConnections = currentGraphConnections;
+
+    const maxLane = Math.max(0, ...graphCommits.map(c => c.lane));
+    const graphWidth = 40 + maxLane * 24;
 
     tableBody.replaceChildren();
 
-    commits.forEach((commit, index) => {
+    commits.forEach((commit) => {
       const row = document.createElement("tr");
+      row.className = "commit-history-row";
+
+      row.addEventListener("click", () => {
+        if (row.classList.contains("selected")) {
+          closeCommitDetailsRow();
+          row.classList.remove("selected");
+          updateCommitGraph();
+          return;
+        }
+
+        tableBody.querySelectorAll(".commit-history-row.selected")
+          .forEach(element => element.classList.remove("selected"));
+
+        closeCommitDetailsRow();
+
+        row.classList.add("selected");
+
+        const detailsRow = document.createElement("tr");
+        detailsRow.className = "commit-details-row";
+
+        const detailsCell = document.createElement("td");
+        detailsCell.colSpan = 5;
+
+        const details = document.querySelector<HTMLElement>("#commit-details");
+
+        if (details) {
+          detailsCell.appendChild(details);
+          detailsRow.appendChild(detailsCell);
+
+          row.insertAdjacentElement("afterend", detailsRow);
+
+          showCommitDetails(commit);
+        }
+
+        updateCommitGraph();
+      });
 
       const graphCell = document.createElement("td");
       graphCell.className = "commit-graph-cell";
-
-      const graph = createCommitGraphNode(graphCommits[index].lane);
-      graphCell.appendChild(graph);
+      graphCell.style.width = `${graphWidth}px`;
+      graphCell.style.minWidth = `${graphWidth}px`;
 
       const message = document.createElement("td");
       message.textContent = commit.message;
@@ -803,11 +888,21 @@ async function loadCommitHistory(repoPath: string) {
       const row = document.createElement("tr");
       const cell = document.createElement("td");
 
-      cell.colSpan = 4;
+      cell.colSpan = 5;
       cell.textContent = "No commits found.";
 
       row.appendChild(cell);
       tableBody.appendChild(row);
+    }
+
+    const container = document.querySelector<HTMLElement>(".table-container");
+    if (container) {
+      renderCommitGraph(
+        graphCommits,
+        graphConnections,
+        tableBody,
+        container
+      );
     }
 
   } catch (error) {
@@ -816,12 +911,34 @@ async function loadCommitHistory(repoPath: string) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
 
-    cell.colSpan = 4;
+    cell.colSpan = 5;
     cell.textContent = `Unable to load commit history: ${error}`;
 
     row.appendChild(cell);
     tableBody.replaceChildren(row);
   }
+  updateCommitGraph();
+}
+
+function updateCommitGraph() {
+  const tableBody = document.querySelector<HTMLTableSectionElement>(
+    "#commit-history-body"
+  );
+
+  const container = document.querySelector<HTMLElement>(
+    ".table-container"
+  );
+
+  if (!tableBody || !container) return;
+
+  if (container.getClientRects().length === 0) return;
+
+  renderCommitGraph(
+    currentGraphCommits,
+    currentGraphConnections,
+    tableBody,
+    container
+  );
 }
 
 async function loadRepositorySummary(repoPath: string) {
@@ -911,24 +1028,188 @@ async function loadLocalBranches(repoPath: string) {
   }
 }
 
-function createCommitGraphNode(lane: number): SVGSVGElement {
-  const svgNS = "http://www.w3.org/2000/svg";
+function calculateGraphPositions(graphCommits: GraphCommit[], tableBody: HTMLTableSectionElement, container: HTMLElement): GraphPoint[] {
+  const rows = Array.from(
+    tableBody.querySelectorAll<HTMLTableRowElement>(
+      "tr.commit-history-row"
+    )
+  );
+  const containerRect = container.getBoundingClientRect();
 
+  const laneSpacing = 24;
+  const laneOffset = 20;
+
+  return graphCommits.map((graphCommit) => {
+    const row = rows[graphCommit.row];
+    const cell = row.querySelector<HTMLElement>(".commit-graph-cell");
+
+    if (!cell) {
+      throw new Error("Graph cell not found.");
+    }
+
+    const rowRect = row.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
+
+    return {
+      x: cellRect.left - containerRect.left
+        + container.scrollLeft
+        + laneOffset
+        + graphCommit.lane * laneSpacing,
+
+      y: rowRect.top - containerRect.top
+        + container.scrollTop
+        + rowRect.height / 2,
+    };
+  });
+}
+
+function createConnectionPath(
+  start: GraphPoint,
+  end: GraphPoint
+): string {
+  if (start.x === end.x) {
+    return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+  }
+
+  const distance = end.y - start.y;
+
+  const controlY1 = start.y + distance * 0.4;
+  const controlY2 = end.y - distance * 0.4;
+
+  return `
+        M ${start.x} ${start.y}
+        C ${start.x} ${controlY1},
+          ${end.x} ${controlY2},
+          ${end.x} ${end.y}
+    `;
+}
+
+function renderCommitGraph(graphCommits: GraphCommit[], connections: GraphConnection[], tableBody: HTMLTableSectionElement, container: HTMLElement) {
+  container.querySelector(".commit-graph-overlay")?.remove();
+
+  const points = calculateGraphPositions(
+    graphCommits,
+    tableBody,
+    container
+  );
+
+  const svgNS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(svgNS, "svg");
 
-  const x = 20 + lane * 24;
+  svg.classList.add("commit-graph-overlay");
+  svg.setAttribute("width", String(container.scrollWidth));
+  svg.setAttribute("height", String(container.scrollHeight));
 
-  svg.setAttribute("width", String(x + 20));
-  svg.setAttribute("height", "40");
-  svg.setAttribute("viewBox", `0 0 ${x + 20} 40`);
+  const mask = document.createElementNS(svgNS, "mask");
+  mask.setAttribute("id", "commit-graph-mask");
+  mask.setAttribute("maskUnits", "userSpaceOnUse");
 
-  const circle = document.createElementNS(svgNS, "circle");
-  circle.setAttribute("cx", String(x));
-  circle.setAttribute("cy", "20");
-  circle.setAttribute("r", "5");
-  circle.setAttribute("fill", "#61afef");
+  const visibleArea = document.createElementNS(svgNS, "rect");
+  visibleArea.setAttribute("width", String(container.scrollWidth));
+  visibleArea.setAttribute("height", String(container.scrollHeight));
+  visibleArea.setAttribute("fill", "white");
 
-  svg.appendChild(circle);
+  mask.appendChild(visibleArea);
 
-  return svg;
+  const detailsRow = tableBody.querySelector<HTMLElement>(
+    ".commit-details-row"
+  );
+  if (detailsRow) {
+    const containerRect = container.getBoundingClientRect();
+    const detailsRect = detailsRow.getBoundingClientRect();
+
+    const hiddenArea = document.createElementNS(svgNS, "rect");
+
+    hiddenArea.setAttribute("x", "0");
+    hiddenArea.setAttribute(
+      "y",
+      String(detailsRect.top - containerRect.top + container.scrollTop)
+    );
+    hiddenArea.setAttribute("width", String(container.scrollWidth));
+    hiddenArea.setAttribute("height", String(detailsRect.height));
+    hiddenArea.setAttribute("fill", "black");
+
+    mask.appendChild(hiddenArea);
+  }
+  const graphGroup = document.createElementNS(svgNS, "g");
+  graphGroup.setAttribute("mask", "url(#commit-graph-mask)");
+
+  svg.appendChild(mask);
+  for (const connection of connections) {
+    const start = points[connection.fromRow];
+    const end = points[connection.toRow];
+
+    const path = document.createElementNS(svgNS, "path");
+
+    path.setAttribute("d", createConnectionPath(start, end));
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", getGraphColor(connection.fromLane));
+    path.setAttribute("stroke-width", "2");
+
+    graphGroup.appendChild(path);
+  }
+  for (const graphCommit of graphCommits) {
+    const point = points[graphCommit.row];
+
+    const circle = document.createElementNS(svgNS, "circle");
+
+    circle.setAttribute("cx", String(point.x));
+    circle.setAttribute("cy", String(point.y));
+    circle.setAttribute("r", "5");
+    circle.setAttribute("fill", getGraphColor(graphCommit.lane));
+
+    graphGroup.appendChild(circle);
+  }
+  svg.appendChild(graphGroup);
+  container.appendChild(svg);
+}
+
+function showCommitDetails(commit: CommitInfo) {
+  const details = document.querySelector<HTMLElement>("#commit-details");
+  const message = document.querySelector<HTMLElement>("#detail-message");
+  const hash = document.querySelector<HTMLElement>("#detail-hash");
+  const author = document.querySelector<HTMLElement>("#detail-author");
+  const date = document.querySelector<HTMLElement>("#detail-date");
+  const parents = document.querySelector<HTMLElement>("#detail-parents");
+
+  if (!details || !message || !hash || !author || !date || !parents) {
+    return;
+  }
+
+  message.textContent = commit.message;
+  hash.textContent = commit.hash;
+  author.textContent = commit.author;
+
+  date.textContent = new Date(
+    commit.timestamp * 1000
+  ).toLocaleString();
+
+  parents.replaceChildren();
+
+  if (commit.parents.length === 0) {
+    parents.textContent = "Initial commit";
+  } else {
+    for (const parent of commit.parents) {
+      const label = document.createElement("code");
+      label.className = "commit-parent";
+      label.textContent = parent.substring(0, 7);
+      label.title = parent;
+
+      parents.appendChild(label);
+    }
+  }
+  details.hidden = false;
+}
+
+function closeCommitDetailsRow() {
+  const details = document.querySelector<HTMLElement>("#commit-details");
+  const detailsRow = document.querySelector<HTMLElement>(".commit-details-row");
+  const tableContainer = document.querySelector<HTMLElement>(".table-container");
+
+  if (details && tableContainer) {
+    details.hidden = true;
+    tableContainer.after(details);
+  }
+
+  detailsRow?.remove();
 }
