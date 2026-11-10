@@ -1,5 +1,5 @@
 // Rust libraries
-use git2::{DiffFormat, DiffOptions, Repository, Sort, Status, StatusOptions};
+use git2::{BranchType, DiffFormat, DiffOptions, Repository, Sort, Status, StatusOptions};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -41,7 +41,7 @@ struct CommitInfo {
     parents: Vec<String>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 struct RepositorySummary {
     current_branch: Option<String>,
     changed_files: usize,
@@ -49,6 +49,13 @@ struct RepositorySummary {
     branch_count: usize,
     contributor_count: usize,
     latest_commit: Option<String>,
+}
+
+#[derive(Serialize)]
+struct BranchInfo {
+    name: String,
+    is_current: bool,
+    commit_hash: Option<String>,
 }
 
 // Reads the directory and creates the file tree structure
@@ -448,7 +455,12 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
     revwalk
         .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
         .map_err(|error| error.to_string())?;
-    revwalk.push_head().map_err(|error| error.to_string())?;
+    revwalk
+        .push_glob("refs/heads/*")
+        .map_err(|error| error.to_string())?;
+    revwalk
+        .push_glob("refs/remotes/*")
+        .map_err(|error| error.to_string())?;
 
     let mut commits = Vec::new();
     for oid_result in revwalk.take(50) {
@@ -469,6 +481,7 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
 
         commits.push(info);
     }
+
     Ok(commits)
 }
 
@@ -554,6 +567,39 @@ fn get_repository_summary(repo_path: String) -> Result<RepositorySummary, String
     Ok(summary)
 }
 
+#[tauri::command]
+fn get_local_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let mut branches = Vec::new();
+
+    let iterator = repo
+        .branches(Some(BranchType::Local))
+        .map_err(|error| error.to_string())?;
+
+    for branch_result in iterator {
+        let (branch, _) = branch_result.map_err(|error| error.to_string())?;
+
+        let name = branch
+            .name()
+            .map_err(|error| error.to_string())?
+            .unwrap_or("Unknown")
+            .to_string();
+
+        let is_current = branch.is_head();
+
+        let commit_hash = branch.get().target().map(|oid| oid.to_string());
+
+        branches.push(BranchInfo {
+            name,
+            is_current,
+            commit_hash,
+        });
+    }
+
+    Ok(branches)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -569,6 +615,7 @@ pub fn run() {
             get_file_diff,
             get_commit_history,
             get_repository_summary,
+            get_local_branches,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
