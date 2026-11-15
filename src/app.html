@@ -157,6 +157,13 @@
                                     <span class="muted">Parents</span>
                                     <div id="detail-parents"></div>
                                 </div>
+
+                                <div class="commit-changes">
+                                    <h4>Changed Files</h4>
+                                    <div id="commit-changes-list">
+                                        <p>Select a commit to view its changes.</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </details>
@@ -170,6 +177,32 @@
                         <summary>
                             <h3>Repository Activity</h3>
                         </summary>
+                        <div class="activity-content">
+                            <div class="activity-stats">
+                                <div class="activity-stat">
+                                    <strong id="activity-total-commits">0</strong>
+                                    <span>Commits</span>
+                                </div>
+
+                                <div class="activity-stat">
+                                    <strong id="activity-active-days">0</strong>
+                                    <span>Active Days</span>
+                                </div>
+                                <div class="activity-stat">
+                                    <strong id="activity-contributors">0</strong>
+                                    <span>Contributors</span>
+                                </div>
+                            </div>
+                            <h4>Commits Over Time</h4>
+                            <p class="activity-description">
+                                Commits per week over the last 12 weeks.
+                            </p>
+                            <div class="activity-chart-container">
+                                <canvas id="activity-chart"></canvas>
+                            </div>
+                            <h4>Contributor Activity</h4>
+                            <div id="activity-contributors-list"></div>
+                        </div>
                     </details>
                 </div>
             </div>

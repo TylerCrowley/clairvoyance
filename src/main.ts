@@ -2,8 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import "./styles.css";
 import appHTML from "./app.html?raw";
 import { open } from "@tauri-apps/plugin-dialog";
-// Switched from emojis to lucide, so that can be recolored or altered in the future
 import { createIcons, Folder, File, Lock } from "lucide";
+import Chart from "chart.js/auto";
 
 interface GitFileStatus {
   staged: string | null;
@@ -67,6 +67,18 @@ interface GraphPoint {
   y: number;
 }
 
+interface CommitFileChange {
+  path: string;
+  status: string;
+  additions: number | null;
+  deletions: number | null;
+}
+
+interface ActivityCommit {
+  timestamp: number;
+  author: string;
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -92,11 +104,15 @@ const commitAll = document.querySelector<HTMLButtonElement>("#commit-all");
 const diffToggle = document.querySelector<HTMLInputElement>("#diff-toggle");
 const diffToggleContainer = document.querySelector<HTMLLabelElement>("#diff-toggle-container");
 const overviewButton = document.querySelector<HTMLButtonElement>("#overview-button");
+const activitySection = document.querySelector<HTMLDetailsElement>("#repository-activity");
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
 let showingDiff = false;
 let currentGraphCommits: GraphCommit[] = [];
 let currentGraphConnections: GraphConnection[] = [];
+let activityChart: Chart | null = null;
+let currentActivity: ActivityCommit[] = [];
+let activityRequestId = 0;
 type WorkspaceView = "file" | "overview";
 const graphColors = [
   "#61afef",
@@ -261,7 +277,15 @@ diffToggle?.addEventListener("change", async () => {
 
 overviewButton?.addEventListener("click", () => {
   showWorkspaceView("overview");
+
   updateCommitGraph();
+  renderRepositoryActivity();
+});
+
+activitySection?.addEventListener("toggle", () => {
+  if (activitySection.open) {
+    renderRepositoryActivity();
+  }
 });
 
 // Adds status totals to directories, makes it much easier to navigate
@@ -468,6 +492,7 @@ async function loadRepository(path: string) {
     await loadRepositorySummary(path);
     await loadCommitHistory(path);
     await loadLocalBranches(path);
+    void loadRepositoryActivity(path); //Changed from await to void, large calculations can be time consuming
 
     const selectedPath = selectedFile?.path;
 
@@ -848,6 +873,8 @@ async function loadCommitHistory(repoPath: string) {
 
         const details = document.querySelector<HTMLElement>("#commit-details");
 
+        row.dataset.commitHash = commit.hash;
+
         if (details) {
           detailsCell.appendChild(details);
           detailsRow.appendChild(detailsCell);
@@ -855,7 +882,11 @@ async function loadCommitHistory(repoPath: string) {
           row.insertAdjacentElement("afterend", detailsRow);
 
           showCommitDetails(commit);
+
+          void loadCommitFileChanges(repoPath, commit.hash);
         }
+
+        updateCommitGraph();
 
         updateCommitGraph();
       });
@@ -1013,6 +1044,25 @@ async function loadLocalBranches(repoPath: string) {
         badge.className = "branch-current";
         badge.textContent = "Current";
         row.appendChild(badge);
+      }
+
+      if (!branch.is_current) {
+        const switchButton = document.createElement("button");
+
+        switchButton.className = "button branch-switch-button";
+        switchButton.textContent = "Switch";
+
+        switchButton.addEventListener("click", async () => {
+          switchButton.disabled = true;
+          switchButton.textContent = "Switching...";
+
+          await switchBranch(repoPath, branch.name);
+
+          switchButton.disabled = false;
+          switchButton.textContent = "Switch";
+        });
+
+        row.appendChild(switchButton);
       }
 
       branchList.appendChild(row);
@@ -1212,4 +1262,336 @@ function closeCommitDetailsRow() {
   }
 
   detailsRow?.remove();
+}
+
+async function loadCommitFileChanges(repoPath: string, commitHash: string) {
+  const container = document.querySelector<HTMLElement>(
+    "#commit-changes-list"
+  );
+
+  if (!container) return;
+
+  container.textContent = "Loading changed files...";
+
+  try {
+    const changes = await invoke<CommitFileChange[]>(
+      "get_commit_file_changes",
+      {
+        repoPath,
+        commitHash
+      }
+    );
+
+    const selected = document.querySelector<HTMLTableRowElement>(
+      ".commit-history-row.selected"
+    );
+
+    if (selected?.dataset.commitHash !== commitHash) return;
+
+    container.replaceChildren();
+
+    if (changes.length === 0) {
+      container.textContent = "No file changes.";
+      return;
+    }
+
+    for (const change of changes) {
+      const fileRow = document.createElement("div");
+      fileRow.className = "commit-change-row";
+
+      const name = document.createElement("span");
+      name.className = "commit-change-name";
+      name.textContent = change.path;
+      name.title = change.status;
+
+      const status = document.createElement("span");
+      status.className = "commit-change-status";
+      status.textContent = change.status;
+
+      const additions = document.createElement("span");
+      additions.className = "commit-change-additions";
+      additions.textContent = change.additions === null
+        ? "—"
+        : `+${change.additions}`;
+
+      const deletions = document.createElement("span");
+      deletions.className = "commit-change-deletions";
+      deletions.textContent = change.deletions === null
+        ? "—"
+        : `-${change.deletions}`;
+
+      fileRow.append(name, status, additions, deletions);
+      container.appendChild(fileRow);
+    }
+    updateCommitGraph();
+  } catch (error) {
+    const selected = document.querySelector<HTMLTableRowElement>(
+      ".commit-history-row.selected"
+    );
+
+    if (selected?.dataset.commitHash !== commitHash) return;
+
+    container.textContent = `Failed to load changes: ${error}`;
+  }
+}
+
+async function switchBranch(repoPath: string, branchName: string): Promise<void> {
+  try {
+    await invoke("switch_branch", {
+      repoPath,
+      branchName
+    });
+    await loadRepository(repoPath);
+  } catch (error) {
+    window.alert(String(error));
+  }
+}
+
+function getWeekStart(date: Date): Date {
+  const start = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
+
+  const day = (start.getDay() + 6) % 7;
+
+  start.setDate(start.getDate() - day);
+  return start;
+}
+
+function calculateWeeklyActivity(commits: ActivityCommit[]) {
+  const labels: string[] = [];
+  const counts: number[] = [];
+  const weekStarts: number[] = [];
+
+  const currentWeek = getWeekStart(new Date());
+
+  // Was going to do last 3 months, but 12 weeks seemed easier and keeps it consistent
+  for (let i = 11; i >= 0; i--) {
+    const week = new Date(currentWeek);
+    week.setDate(week.getDate() - i * 7);
+
+    const weekEnd = new Date(week);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    const startLabel = week.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric"
+    });
+
+    const endLabel = weekEnd.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric"
+    });
+
+    labels.push(`${startLabel} - ${endLabel}`);
+
+    weekStarts.push(week.getTime());
+    counts.push(0);
+  }
+
+  const currentWeekEnd = new Date(currentWeek);
+  currentWeekEnd.setDate(currentWeekEnd.getDate() + 7);
+
+  for (const commit of commits) {
+    const date = new Date(commit.timestamp * 1000);
+    const week = getWeekStart(date).getTime();
+
+    const index = weekStarts.indexOf(week);
+
+    if (index !== -1 && date.getTime() < currentWeekEnd.getTime()) {
+      counts[index]++;
+    }
+  }
+
+  return { labels, counts };
+}
+
+function renderActivityStatistics() {
+  const commits = getActivityInRange();
+
+  const activeDays = new Set(
+    commits.map(commit =>
+      new Date(commit.timestamp * 1000).toDateString()
+    )
+  );
+
+  const contributors = new Set(
+    commits.map(commit => commit.author)
+  );
+
+  const totalElement = document.querySelector<HTMLElement>(
+    "#activity-total-commits"
+  );
+
+  const daysElement = document.querySelector<HTMLElement>(
+    "#activity-active-days"
+  );
+
+  const contributorsElement = document.querySelector<HTMLElement>(
+    "#activity-contributors"
+  );
+
+  if (totalElement) {
+    totalElement.textContent = String(commits.length);
+  }
+
+  if (daysElement) {
+    daysElement.textContent = String(activeDays.size);
+  }
+
+  if (contributorsElement) {
+    contributorsElement.textContent = String(contributors.size);
+  }
+}
+
+function renderContributorActivity() {
+  const container = document.querySelector<HTMLElement>(
+    "#activity-contributors-list"
+  );
+
+  if (!container) return;
+
+  container.replaceChildren();
+
+  const commits = getActivityInRange();
+  const counts = new Map<string, number>();
+
+  for (const commit of commits) {
+    counts.set(
+      commit.author,
+      (counts.get(commit.author) ?? 0) + 1
+    );
+  }
+
+  const contributors = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1]);
+
+  if (contributors.length === 0) {
+    container.textContent = "No contributor activity in this period.";
+    return;
+  }
+
+  const maxCount = contributors[0][1];
+
+  for (const [author, count] of contributors) {
+    const row = document.createElement("div");
+    row.className = "activity-contributor";
+
+    const header = document.createElement("div");
+    header.className = "activity-contributor-header";
+
+    const name = document.createElement("span");
+    name.textContent = author;
+
+    const amount = document.createElement("span");
+    amount.textContent = `${count} commits`;
+
+    header.append(name, amount);
+
+    const track = document.createElement("div");
+    track.className = "activity-contributor-track";
+
+    const bar = document.createElement("div");
+    bar.className = "activity-contributor-bar";
+    bar.style.width = `${(count / maxCount) * 100}%`;
+
+    track.appendChild(bar);
+    row.append(header, track);
+    container.appendChild(row);
+  }
+}
+
+function renderRepositoryActivity() {
+  const canvas = document.querySelector<HTMLCanvasElement>(
+    "#activity-chart"
+  );
+
+  const section = document.querySelector<HTMLElement>(
+    "#repository-activity"
+  );
+
+  if (!canvas || !section) return;
+
+  if (canvas.getClientRects().length === 0) return;
+
+  const { labels, counts } = calculateWeeklyActivity(currentActivity);
+
+  activityChart?.destroy();
+
+  activityChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Commits",
+        data: counts,
+        backgroundColor: "#61afef",
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: "#a0a6b0"
+          }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: "#a0a6b0",
+            precision: 0
+          }
+        }
+      }
+    }
+  });
+
+  renderActivityStatistics();
+  renderContributorActivity();
+}
+
+function getActivityInRange(): ActivityCommit[] {
+  const start = getWeekStart(new Date());
+  start.setDate(start.getDate() - 11 * 7);
+
+  const now = Date.now();
+
+  return currentActivity.filter(commit => {
+    const timestamp = commit.timestamp * 1000;
+    return timestamp >= start.getTime() && timestamp <= now;
+  });
+}
+
+async function loadRepositoryActivity(repoPath: string) {
+  const requestId = ++activityRequestId;
+
+  currentActivity = [];
+  activityChart?.destroy();
+  activityChart = null;
+
+  try {
+    const commits = await invoke<ActivityCommit[]>(
+      "get_repository_activity",
+      { repoPath }
+    );
+
+    if (requestId !== activityRequestId) return;
+
+    currentActivity = commits;
+    renderRepositoryActivity();
+  } catch (error) {
+    if (requestId !== activityRequestId) return;
+
+    console.error("Failed to load repository activity:", error);
+  }
 }

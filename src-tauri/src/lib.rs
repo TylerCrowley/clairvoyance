@@ -1,5 +1,8 @@
 // Rust libraries
-use git2::{BranchType, DiffFormat, DiffOptions, Repository, Sort, Status, StatusOptions};
+use git2::{
+    build::CheckoutBuilder, BranchType, DiffFormat, DiffOptions, Repository, RepositoryState, Sort,
+    Status, StatusOptions,
+};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -56,6 +59,20 @@ struct BranchInfo {
     name: String,
     is_current: bool,
     commit_hash: Option<String>,
+}
+
+#[derive(Serialize)]
+struct CommitFileChange {
+    path: String,
+    status: String,
+    additions: Option<usize>,
+    deletions: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct ActivityCommit {
+    timestamp: i64,
+    author: String,
 }
 
 // Reads the directory and creates the file tree structure
@@ -600,6 +617,189 @@ fn get_local_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
     Ok(branches)
 }
 
+#[tauri::command]
+fn get_commit_file_changes(
+    repo_path: String,
+    commit_hash: String,
+) -> Result<Vec<CommitFileChange>, String> {
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let oid = git2::Oid::from_str(&commit_hash).map_err(|error| error.to_string())?;
+
+    let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
+
+    let commit_tree = commit.tree().map_err(|error| error.to_string())?;
+
+    let parent_tree = if commit.parent_count() > 0 {
+        Some(
+            commit
+                .parent(0)
+                .map_err(|error| error.to_string())?
+                .tree()
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        None
+    };
+
+    let mut diff = repo
+        .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), None)
+        .map_err(|error| error.to_string())?;
+
+    diff.find_similar(None).map_err(|error| error.to_string())?;
+
+    let mut changes = Vec::new();
+
+    for (index, delta) in diff.deltas().enumerate() {
+        let path = delta
+            .new_file()
+            .path()
+            .or_else(|| delta.old_file().path())
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Unknown file".to_string());
+
+        let status = format!("{:?}", delta.status());
+
+        let patch = git2::Patch::from_diff(&diff, index).map_err(|error| error.to_string())?;
+
+        let (additions, deletions) = match patch {
+            Some(patch) => {
+                let (_, added, removed) = patch.line_stats().map_err(|error| error.to_string())?;
+
+                (Some(added), Some(removed))
+            }
+            None => (None, None),
+        };
+
+        changes.push(CommitFileChange {
+            path,
+            status,
+            additions,
+            deletions,
+        });
+    }
+
+    Ok(changes)
+}
+
+#[tauri::command]
+fn switch_branch(repo_path: String, branch_name: String) -> Result<(), String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let branch = repo
+        .find_branch(&branch_name, BranchType::Local)
+        .map_err(|error| error.to_string())?;
+
+    if branch.is_head() {
+        return Ok(());
+    }
+
+    if repo.state() != RepositoryState::Clean {
+        return Err(
+            "A Git operation is in progress. Finish or abort it before switching branches."
+                .to_string(),
+        );
+    }
+
+    let mut options = StatusOptions::new();
+    options.include_untracked(true).recurse_untracked_dirs(true);
+
+    let statuses = repo
+        .statuses(Some(&mut options))
+        .map_err(|error| error.to_string())?;
+
+    if !statuses.is_empty() {
+        return Err(
+            "Uncommitted changes detected. Commit, stash, or discard your changes before switching branches."
+                .to_string()
+        );
+    }
+
+    let reference_name = branch
+        .get()
+        .name()
+        .map_err(|error| error.to_string())?
+        .to_string();
+
+    let commit = branch
+        .get()
+        .peel_to_commit()
+        .map_err(|error| error.to_string())?;
+
+    let object = repo
+        .find_object(commit.id(), None)
+        .map_err(|error| error.to_string())?;
+
+    let mut checkout = CheckoutBuilder::new();
+    checkout.safe();
+
+    repo.checkout_tree(&object, Some(&mut checkout))
+        .map_err(|error| format!("Branch checkout failed: {error}"))?;
+
+    repo.set_head(&reference_name)
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn get_repository_activity(repo_path: String) -> Result<Vec<ActivityCommit>, String> {
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_secs() as i64;
+
+    let cutoff = now - (91 * 24 * 60 * 60);
+
+    let references = repo.references().map_err(|error| error.to_string())?;
+
+    for reference in references {
+        let reference = reference.map_err(|error| error.to_string())?;
+
+        let name = reference.name().unwrap_or("");
+
+        if !name.starts_with("refs/heads/") && !name.starts_with("refs/remotes/") {
+            continue;
+        }
+
+        if reference.kind() == Some(git2::ReferenceType::Symbolic) {
+            continue;
+        }
+
+        let commit = reference
+            .peel_to_commit()
+            .map_err(|error| error.to_string())?;
+
+        revwalk
+            .push(commit.id())
+            .map_err(|error| error.to_string())?;
+    }
+
+    let mut activity = Vec::new();
+
+    for oid_result in revwalk {
+        let oid = oid_result.map_err(|error| error.to_string())?;
+
+        let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
+
+        let timestamp = commit.time().seconds();
+
+        if timestamp < cutoff || timestamp > now {
+            continue;
+        }
+
+        let author = commit.author().name().unwrap_or("Unknown").to_string();
+
+        activity.push(ActivityCommit { timestamp, author });
+    }
+
+    Ok(activity)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -616,6 +816,9 @@ pub fn run() {
             get_commit_history,
             get_repository_summary,
             get_local_branches,
+            get_commit_file_changes,
+            switch_branch,
+            get_repository_activity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
