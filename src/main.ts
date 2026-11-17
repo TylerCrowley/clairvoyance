@@ -510,11 +510,12 @@ function findFileByPath(entry: TreeEntry, path: string): TreeEntry | null {
 }
 
 // Recursively renders the file tree
-function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
+function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<string> = new Set()): HTMLElement {
   if (entry.is_dir) {
     const details = document.createElement("details");
     details.className = "directory";
-    details.open = isRoot && !entry.unreadable;
+    details.dataset.path = entry.path;
+    details.open = !entry.unreadable && (isRoot || expandedDirectories.has(entry.path));
 
     const summary = document.createElement("summary");
     const icon = document.createElement("i");
@@ -566,7 +567,7 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
     const children = document.createElement("div");
     children.className = "children";
     for (const child of entry.children) {
-      children.appendChild(renderEntry(child));
+      children.appendChild(renderEntry(child, false, expandedDirectories));
     }
     details.append(summary, children);
     return details;
@@ -606,6 +607,20 @@ function renderEntry(entry: TreeEntry, isRoot = false): HTMLElement {
   return file;
 }
 
+function getExpandedDirectories(): Set<string> {
+  const expanded = new Set<string>();
+
+  treeContainer
+    .querySelectorAll<HTMLDetailsElement>("details.directory[open]")
+    .forEach(details => {
+      if (details.dataset.path !== undefined) {
+        expanded.add(details.dataset.path);
+      }
+    });
+
+  return expanded;
+}
+
 // Loads the selected repository into the interface
 async function loadRepository(path: string) {
   status.textContent = "Refreshing repository…";
@@ -629,7 +644,8 @@ async function loadRepository(path: string) {
       commitButton.disabled = true;
     }
 
-    treeContainer.replaceChildren(renderEntry(root, true));
+    const expandedDirectories = getExpandedDirectories();
+    treeContainer.replaceChildren(renderEntry(root, true, expandedDirectories));
     renderStatusSummary(root);
     createIcons({
       icons: {
