@@ -644,7 +644,8 @@ async function loadRepository(path: string) {
       commitButton.disabled = true;
     }
 
-    const expandedDirectories = getExpandedDirectories();
+    const expandedDirectories =
+    currentRepoPath === path? getExpandedDirectories(): new Set<string>();
     treeContainer.replaceChildren(renderEntry(root, true, expandedDirectories));
     renderStatusSummary(root);
     createIcons({
