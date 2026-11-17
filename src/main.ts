@@ -105,6 +105,15 @@ const diffToggle = document.querySelector<HTMLInputElement>("#diff-toggle");
 const diffToggleContainer = document.querySelector<HTMLLabelElement>("#diff-toggle-container");
 const overviewButton = document.querySelector<HTMLButtonElement>("#overview-button");
 const activitySection = document.querySelector<HTMLDetailsElement>("#repository-activity");
+const createBranchButton = document.querySelector<HTMLButtonElement>("#create-branch-button");
+const createBranchDialog = document.querySelector<HTMLDialogElement>("#create-branch-dialog");
+const createBranchForm = document.querySelector<HTMLFormElement>("#create-branch-form");
+const newBranchName = document.querySelector<HTMLInputElement>("#new-branch-name");
+const mergeDialog = document.querySelector<HTMLDialogElement>("#merge-branches-dialog");
+const mergeForm = document.querySelector<HTMLFormElement>("#merge-branches-form");
+const otherBranchSelect = document.querySelector<HTMLSelectElement>("#merge-other-branch");
+const cancelMergeButton = document.querySelector<HTMLButtonElement>("#cancel-merge");
+let mergeCurrentBranch = "";
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
 let showingDiff = false;
@@ -286,6 +295,123 @@ activitySection?.addEventListener("toggle", () => {
   if (activitySection.open) {
     renderRepositoryActivity();
   }
+});
+
+createBranchButton?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (!currentRepoPath) return;
+
+  createBranchDialog?.showModal();
+});
+
+document.querySelector<HTMLButtonElement>("#cancel-create-branch")?.addEventListener("click", () => {
+  createBranchDialog?.close();
+});
+
+createBranchForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!currentRepoPath || !newBranchName) return;
+
+  const repoPath = currentRepoPath;
+  const branchName = newBranchName.value.trim();
+
+  const submitButton = createBranchForm.querySelector<HTMLButtonElement>(
+    'button[type="submit"]'
+  );
+  if (submitButton) submitButton.disabled = true;
+  try {
+    await invoke("create_branch", {
+      repoPath,
+      branchName
+    });
+
+    createBranchDialog?.close();
+    createBranchForm.reset();
+
+    await loadLocalBranches(repoPath);
+  } catch (error) {
+    window.alert(`Failed to create branch: ${error}`);
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+});
+
+document.querySelector<HTMLButtonElement>("#open-merge-dialog")?.addEventListener("click", async (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (!currentRepoPath || !mergeDialog) return;
+
+  try {
+    mergeCurrentBranch = await populateMergeDialog(currentRepoPath);
+
+    updateMergePreview();
+    mergeDialog.showModal();
+  } catch (error) {
+    window.alert(String(error));
+  }
+});
+
+otherBranchSelect?.addEventListener("change", updateMergePreview);
+
+document.querySelectorAll<HTMLInputElement>('input[name="merge-direction"]').forEach(radio => {
+  radio.addEventListener("change", updateMergePreview);
+});
+
+mergeForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!currentRepoPath) return;
+
+  const repoPath = currentRepoPath;
+  const { source, target } = getMergeDirection();
+
+  if (!source || !target || source === target) return;
+
+  const confirmed = window.confirm(
+    `Merge '${source}' into '${target}'?\n\n` +
+    `'${target}' will receive the changes.\n` +
+    `Your working directory must be clean.`
+  );
+
+  if (!confirmed) return;
+
+  const button = document.querySelector<HTMLButtonElement>(
+    "#confirm-merge"
+  );
+
+  if (button) button.disabled = true;
+
+  try {
+    const result = await invoke<string>("merge_branches", {
+      repoPath,
+      sourceBranch: source,
+      targetBranch: target
+    });
+
+    mergeDialog?.close();
+
+    window.alert(result);
+  } catch (error) {
+    window.alert(`Merge failed: ${error}`);
+  } finally {
+    try {
+      await loadRepository(repoPath);
+    } catch (refreshError) {
+      console.error(
+        "Failed to refresh repository after merge:",
+        refreshError
+      );
+    }
+
+    if (button) button.disabled = false;
+  }
+});
+
+cancelMergeButton?.addEventListener("click", () => {
+  mergeDialog?.close();
 });
 
 // Adds status totals to directories, makes it much easier to navigate
@@ -1594,4 +1720,85 @@ async function loadRepositoryActivity(repoPath: string) {
 
     console.error("Failed to load repository activity:", error);
   }
+}
+
+async function populateMergeDialog(repoPath: string) {
+  const branches = await invoke<BranchInfo[]>(
+    "get_local_branches",
+    { repoPath }
+  );
+
+  const current = branches.find(branch => branch.is_current);
+
+  const select = document.querySelector<HTMLSelectElement>(
+    "#merge-other-branch"
+  );
+
+  if (!current || !select) {
+    throw new Error("No current local branch was found.");
+  }
+
+  select.replaceChildren();
+
+  for (const branch of branches) {
+    if (branch.is_current) continue;
+
+    const option = document.createElement("option");
+    option.value = branch.name;
+    option.textContent = branch.name;
+
+    select.appendChild(option);
+  }
+
+  if (select.options.length === 0) {
+    throw new Error("Create another local branch before merging.");
+  }
+
+  return current.name;
+}
+
+function getMergeDirection() {
+  const selected = document.querySelector<HTMLInputElement>(
+    'input[name="merge-direction"]:checked'
+  );
+
+  const otherBranch = otherBranchSelect?.value ?? "";
+
+  if (selected?.value === "into-other") {
+    return {
+      source: mergeCurrentBranch,
+      target: otherBranch
+    };
+  }
+
+  return {
+    source: otherBranch,
+    target: mergeCurrentBranch
+  };
+}
+
+function updateMergePreview() {
+  const { source, target } = getMergeDirection();
+
+  const title = document.querySelector<HTMLElement>(
+    "#merge-preview-title"
+  );
+
+  const description = document.querySelector<HTMLElement>(
+    "#merge-preview-description"
+  );
+
+  const confirmButton = document.querySelector<HTMLButtonElement>(
+    "#confirm-merge"
+  );
+
+  if (!title || !description || !confirmButton) return;
+
+  title.textContent = `Merge ${source} into ${target}`;
+
+  description.textContent =
+    `${target} will receive the changes from ${source}. ` +
+    `Clairvoyance will check out ${target} if necessary.`;
+
+  confirmButton.textContent = `Merge into ${target}`;
 }

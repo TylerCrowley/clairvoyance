@@ -800,6 +800,194 @@ fn get_repository_activity(repo_path: String) -> Result<Vec<ActivityCommit>, Str
     Ok(activity)
 }
 
+#[tauri::command]
+fn create_branch(repo_path: String, branch_name: String) -> Result<(), String> {
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let name = branch_name.trim();
+
+    if name.is_empty() {
+        return Err("Branch name cannot be empty.".to_string());
+    }
+    if repo.state() != git2::RepositoryState::Clean {
+        return Err("Finish the current Git operation before creating a branch.".to_string());
+    }
+
+    let head = repo.head().map_err(|error| error.to_string())?;
+
+    let commit = head.peel_to_commit().map_err(|error| error.to_string())?;
+
+    // false prevents overwriting an existing branch.
+    repo.branch(name, &commit, false)
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn merge_branches(
+    repo_path: String,
+    source_branch: String,
+    target_branch: String,
+) -> Result<String, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    if source_branch == target_branch {
+        return Err("Cannot merge a branch into itself.".to_string());
+    }
+    if repo.state() != RepositoryState::Clean {
+        return Err("Finish or abort the current Git operation before merging.".to_string());
+    }
+    if repo.head_detached().map_err(|error| error.to_string())? {
+        return Err("Check out a local branch before merging.".to_string());
+    }
+
+    let mut status_options = StatusOptions::new();
+
+    status_options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true);
+
+    let statuses = repo
+        .statuses(Some(&mut status_options))
+        .map_err(|error| error.to_string())?;
+
+    if !statuses.is_empty() {
+        return Err(
+            "Uncommitted changes detected. Commit or stash them before merging.".to_string(),
+        );
+    }
+
+    let source = repo
+        .find_branch(&source_branch, BranchType::Local)
+        .map_err(|error| error.to_string())?;
+
+    let target = repo
+        .find_branch(&target_branch, BranchType::Local)
+        .map_err(|error| error.to_string())?;
+
+    let source_commit = source
+        .get()
+        .peel_to_commit()
+        .map_err(|error| error.to_string())?;
+
+    let target_commit = target
+        .get()
+        .peel_to_commit()
+        .map_err(|error| error.to_string())?;
+
+    let up_to_date = source_commit.id() == target_commit.id()
+        || repo
+            .graph_descendant_of(target_commit.id(), source_commit.id())
+            .map_err(|error| error.to_string())?;
+
+    if up_to_date {
+        return Ok(format!("{target_branch} already contains {source_branch}."));
+    }
+
+    let fast_forward = repo
+        .graph_descendant_of(source_commit.id(), target_commit.id())
+        .map_err(|error| error.to_string())?;
+
+    if !fast_forward {
+        let preview = repo
+            .merge_commits(&target_commit, &source_commit, None)
+            .map_err(|error| error.to_string())?;
+
+        if preview.has_conflicts() {
+            return Err(format!(
+                "Cannot automatically merge {source_branch} into \
+                 {target_branch}: merge conflicts were detected. \
+                 No branches were changed."
+            ));
+        }
+    }
+
+    if !target.is_head() {
+        let object = repo
+            .find_object(target_commit.id(), None)
+            .map_err(|error| error.to_string())?;
+
+        let mut checkout = CheckoutBuilder::new();
+        checkout.safe();
+
+        repo.checkout_tree(&object, Some(&mut checkout))
+            .map_err(|error| error.to_string())?;
+
+        let reference_name = target.get().name().map_err(|error| error.to_string())?;
+
+        repo.set_head(reference_name)
+            .map_err(|error| error.to_string())?;
+    }
+
+    if fast_forward {
+        let object = repo
+            .find_object(source_commit.id(), None)
+            .map_err(|error| error.to_string())?;
+
+        let mut checkout = CheckoutBuilder::new();
+        checkout.safe();
+
+        repo.checkout_tree(&object, Some(&mut checkout))
+            .map_err(|error| error.to_string())?;
+
+        let mut target_ref = repo
+            .find_reference(&format!("refs/heads/{target_branch}"))
+            .map_err(|error| error.to_string())?;
+
+        target_ref
+            .set_target(source_commit.id(), "Fast-forward merge")
+            .map_err(|error| error.to_string())?;
+
+        return Ok(format!(
+            "Fast-forwarded {target_branch} to {source_branch}."
+        ));
+    }
+
+    let annotated = repo
+        .find_annotated_commit(source_commit.id())
+        .map_err(|error| error.to_string())?;
+
+    let mut checkout = CheckoutBuilder::new();
+    checkout.safe();
+
+    repo.merge(&[&annotated], None, Some(&mut checkout))
+        .map_err(|error| error.to_string())?;
+
+    let mut index = repo.index().map_err(|error| error.to_string())?;
+
+    if index.has_conflicts() {
+        return Err("The merge produced conflicts. Resolve or abort \
+             the in-progress merge before continuing."
+            .to_string());
+    }
+
+    let tree_oid = index.write_tree().map_err(|error| error.to_string())?;
+
+    let tree = repo
+        .find_tree(tree_oid)
+        .map_err(|error| error.to_string())?;
+
+    let signature = repo.signature().map_err(|error| error.to_string())?;
+
+    let message = format!("Merge branch '{source_branch}' into {target_branch}");
+
+    repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        &message,
+        &tree,
+        &[&target_commit, &source_commit],
+    )
+    .map_err(|error| error.to_string())?;
+
+    repo.cleanup_state().map_err(|error| error.to_string())?;
+
+    Ok(format!(
+        "Successfully merged {source_branch} into {target_branch}."
+    ))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -819,6 +1007,8 @@ pub fn run() {
             get_commit_file_changes,
             switch_branch,
             get_repository_activity,
+            create_branch,
+            merge_branches,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
