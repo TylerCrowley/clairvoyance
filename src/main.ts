@@ -113,6 +113,9 @@ const mergeDialog = document.querySelector<HTMLDialogElement>("#merge-branches-d
 const mergeForm = document.querySelector<HTMLFormElement>("#merge-branches-form");
 const otherBranchSelect = document.querySelector<HTMLSelectElement>("#merge-other-branch");
 const cancelMergeButton = document.querySelector<HTMLButtonElement>("#cancel-merge");
+const editFileButton = document.querySelector<HTMLButtonElement>("#edit-file-button");
+const cancelEditButton = document.querySelector<HTMLButtonElement>("#cancel-edit-button");
+const saveFileButton = document.querySelector<HTMLButtonElement>("#save-file-button");
 let mergeCurrentBranch = "";
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
@@ -122,6 +125,9 @@ let currentGraphConnections: GraphConnection[] = [];
 let activityChart: Chart | null = null;
 let currentActivity: ActivityCommit[] = [];
 let activityRequestId = 0;
+let isEditing = false;
+let originalFileContent = "";
+let editedFileContent = "";
 type WorkspaceView = "file" | "overview";
 const graphColors = [
   "#61afef",
@@ -152,9 +158,8 @@ selectButton?.addEventListener("click", async () => {
 
 // The button to refresh the file tree, in case anything is moved or deleted
 refreshButton?.addEventListener("click", async () => {
-  if (currentRepoPath) {
-    await loadRepository(currentRepoPath);
-  }
+  if (!currentRepoPath || !confirmDiscardEdits()) return;
+  await loadRepository(currentRepoPath);
 });
 
 // The button to stage and unstage changes in the repo
@@ -414,6 +419,62 @@ cancelMergeButton?.addEventListener("click", () => {
   mergeDialog?.close();
 });
 
+editFileButton?.addEventListener("click", () => {
+  startFileEditing();
+});
+
+cancelEditButton?.addEventListener("click", async () => {
+  if (!selectedFile) return;
+  if (editedFileContent !== originalFileContent) {
+    const confirmed = window.confirm(
+      "Discard your unsaved changes?"
+    );
+    if (!confirmed) return;
+  }
+  const selectedElement = document.querySelector<HTMLElement>(
+    ".file.selected"
+  );
+
+  if (!selectedElement) return;
+
+  isEditing = false;
+  await openFile(selectedFile, selectedElement);
+});
+
+saveFileButton?.addEventListener("click", async () => {
+  if (!currentRepoPath || !selectedFile || !isEditing) return;
+  if (editedFileContent === originalFileContent) return;
+
+  const repoPath = currentRepoPath;
+  const filePath = selectedFile.path;
+  const contents = editedFileContent;
+
+  saveFileButton.disabled = true;
+  saveFileButton.textContent = "Saving...";
+
+  try {
+    await invoke("save_file", {
+      repoPath,
+      filePath,
+      contents
+    });
+
+    originalFileContent = contents;
+    editedFileContent = contents;
+    isEditing = false;
+
+    await loadRepository(repoPath);
+
+  } catch (error) {
+    console.error("Failed to save file:", error);
+    window.alert(`Failed to save file: ${error}`);
+
+  } finally {
+    saveFileButton.textContent = "Save";
+    updateEditingButtons();
+  }
+});
+
 // Adds status totals to directories, makes it much easier to navigate
 function countChangedFiles(entry: TreeEntry): number {
   if (!entry.is_dir) {
@@ -451,6 +512,20 @@ function updateCommitButtons() {
 
   if (commitStaged) commitStaged.disabled = !valid;
   if (commitAll) commitAll.disabled = !valid;
+}
+
+function updateEditingButtons() {
+  if (!editFileButton || !cancelEditButton || !saveFileButton) {
+    return;
+  }
+
+  editFileButton.hidden = !selectedFile || isEditing || showingDiff;
+
+  cancelEditButton.hidden = !isEditing;
+  saveFileButton.hidden = !isEditing;
+
+  saveFileButton.disabled =
+    !isEditing || editedFileContent === originalFileContent;
 }
 
 // Actually commits file changes
@@ -645,7 +720,7 @@ async function loadRepository(path: string) {
     }
 
     const expandedDirectories =
-    currentRepoPath === path? getExpandedDirectories(): new Set<string>();
+      currentRepoPath === path ? getExpandedDirectories() : new Set<string>();
     treeContainer.replaceChildren(renderEntry(root, true, expandedDirectories));
     renderStatusSummary(root);
     createIcons({
@@ -819,6 +894,14 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
 
   if (!fileName || !filePath || !fileContent) return;
 
+  if (isEditing && editedFileContent !== originalFileContent) {
+    const confirmed = window.confirm(
+      "You have unsaved changes. Discard them and open another file?"
+    );
+
+    if (!confirmed) return;
+  }
+
   document.querySelectorAll(".file.selected").forEach((file) => {
     file.classList.remove("selected");
   });
@@ -830,6 +913,10 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   updateDiffToggle(entry);
   updateStageButton(entry);
   showWorkspaceView("file");
+  isEditing = false;
+  editFileButton && (editFileButton.hidden = true);
+  cancelEditButton && (cancelEditButton.hidden = true);
+  saveFileButton && (saveFileButton.hidden = true);
 
   fileName.textContent = entry.name;
   filePath.textContent = entry.path;
@@ -841,12 +928,11 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
       filePath: entry.path,
     });
 
-    // const diff = await invoke<FileDiffLine[]>("get_file_diff", {
-    //   repoPath: currentRepoPath,
-    //   filePath: entry.path,
-    // });
+    originalFileContent = contents;
+    editedFileContent = contents;
+    isEditing = false;
 
-    // console.table(diff);
+    updateEditingButtons();
 
     const pre = document.createElement("pre");
     pre.className = "file-text";
@@ -1818,4 +1904,46 @@ function updateMergePreview() {
     `Clairvoyance will check out ${target} if necessary.`;
 
   confirmButton.textContent = `Merge into ${target}`;
+}
+
+function startFileEditing() {
+  if (!selectedFile || isEditing || showingDiff) return;
+
+  const fileContent = document.querySelector<HTMLDivElement>(
+    "#file-content"
+  );
+
+  if (!fileContent) return;
+
+  isEditing = true;
+  editedFileContent = originalFileContent;
+
+  const editor = document.createElement("textarea");
+
+  editor.id = "file-editor";
+  editor.className = "file-editor";
+  editor.value = editedFileContent;
+
+  editor.spellcheck = false;
+  editor.wrap = "soft";
+
+  editor.addEventListener("input", () => {
+    editedFileContent = editor.value;
+    updateEditingButtons();
+  });
+
+  fileContent.replaceChildren(editor);
+
+  editor.focus();
+
+  updateEditingButtons();
+}
+
+function confirmDiscardEdits(): boolean {
+  if (!isEditing || editedFileContent === originalFileContent) {
+    return true;
+  }
+  return window.confirm(
+    "You have unsaved changes. Discard them?"
+  );
 }

@@ -988,6 +988,41 @@ fn merge_branches(
     ))
 }
 
+#[tauri::command]
+fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(), String> {
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo
+        .workdir()
+        .ok_or("Cannot edit files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&file_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let resolved = target
+        .canonicalize()
+        .map_err(|error| format!("Invalid file path: {error}"))?;
+
+    if !resolved.starts_with(&repo_root) {
+        return Err("Cannot save files outside the selected repository.".to_string());
+    }
+
+    if !resolved.is_file() {
+        return Err("The selected path is not a regular file.".to_string());
+    }
+
+    fs::write(&resolved, contents).map_err(|error| format!("Failed to save file: {error}"))?;
+    
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1009,6 +1044,7 @@ pub fn run() {
             get_repository_activity,
             create_branch,
             merge_branches,
+            save_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
