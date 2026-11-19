@@ -130,6 +130,7 @@ let activityRequestId = 0;
 let isEditing = false;
 let originalFileContent = "";
 let editedFileContent = "";
+let currentImageURL: string | null = null;
 type WorkspaceView = "file" | "overview";
 const graphColors = [
   "#61afef",
@@ -521,7 +522,7 @@ function updateEditingButtons() {
     return;
   }
 
-  editFileButton.hidden = !selectedFile || isEditing || showingDiff;
+  editFileButton.hidden = !selectedFile || isImageFile(selectedFile.name) || isEditing || showingDiff;
 
   cancelEditButton.hidden = !isEditing;
   saveFileButton.hidden = !isEditing;
@@ -570,7 +571,7 @@ function updateDiffToggle(entry: TreeEntry | null) {
     entry?.status?.staged || entry?.status?.unstaged
   );
 
-  diffToggleContainer.hidden = !hasChanges;
+  diffToggleContainer.hidden = !hasChanges || Boolean(entry && isImageFile(entry.name));
   diffToggle.checked = hasChanges && showingDiff;
 }
 
@@ -904,6 +905,11 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
     if (!confirmed) return;
   }
 
+  if (currentImageURL) {
+    URL.revokeObjectURL(currentImageURL);
+    currentImageURL = null;
+  }
+
   document.querySelectorAll(".file.selected").forEach((file) => {
     file.classList.remove("selected");
   });
@@ -925,6 +931,27 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   fileContent.textContent = "Loading file...";
 
   try {
+    if (isImageFile(entry.name)) {
+      const imageURL = await loadLocalImage(
+        currentRepoPath,
+        entry.path
+      );
+
+      if (selectedFile !== entry) {
+        URL.revokeObjectURL(imageURL);
+        return;
+      }
+
+      currentImageURL = imageURL;
+      renderImage(imageURL, fileContent);
+
+      isEditing = false;
+      originalFileContent = "";
+      editedFileContent = "";
+
+      updateEditingButtons();
+      return;
+    }
     const contents = await invoke<string>("read_file", {
       repoPath: currentRepoPath,
       filePath: entry.path,
@@ -1962,10 +1989,11 @@ function isMarkdownFile(filename: string): boolean {
     extension.endsWith(".markdown");
 }
 
-function renderMarkdown(
-  contents: string,
-  container: HTMLElement
-): void {
+function isImageFile(filename: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(filename);
+}
+
+function renderMarkdown(contents: string, container: HTMLElement): void {
   const html = marked.parse(contents, {
     async: false,
     gfm: true,
@@ -1981,11 +2009,69 @@ function renderMarkdown(
 
   preview.innerHTML = sanitizedHTML;
 
-  preview.querySelectorAll("img").forEach(image => image.remove());
+  preview.querySelectorAll("img").forEach(image => {
+    const source = image.getAttribute("src");
+
+    if (!source) {
+      image.remove();
+      return;
+    }
+
+    try {
+      const url = new URL(source);
+
+      if (url.protocol !== "https:" && url.protocol !== "http:") {
+        image.remove();
+      }
+    } catch {
+      image.remove();
+    }
+  });
 
   preview.querySelectorAll("a").forEach(link => {
     link.removeAttribute("href");
   });
 
   container.replaceChildren(preview);
+}
+
+async function loadLocalImage(repoPath: string, filePath: string): Promise<string> {
+  const bytes = await invoke<number[]>("read_image", {
+    repoPath,
+    filePath
+  });
+
+  const extension = filePath.split(".").pop()?.toLowerCase();
+
+  const mimeTypes: Record<string, string> = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml"
+  };
+
+  const mimeType = mimeTypes[extension ?? ""];
+
+  if (!mimeType) {
+    throw new Error("Unsupported image format.");
+  }
+
+  const blob = new Blob(
+    [new Uint8Array(bytes)],
+    { type: mimeType }
+  );
+
+  return URL.createObjectURL(blob);
+}
+
+function renderImage(url: string, container: HTMLElement): void {
+  const image = document.createElement("img");
+
+  image.src = url;
+  image.className = "file-image";
+  image.alt = "Image preview";
+
+  container.replaceChildren(image);
 }

@@ -1397,3 +1397,20 @@ main.workspace {
     border-top: 1px solid #30343d;
     margin: 24px 0;
 }
+
+.file-image {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin: auto;
+}
+
+.file-content:has(.file-image) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}

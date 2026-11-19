@@ -1019,8 +1019,58 @@ fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(
     }
 
     fs::write(&resolved, contents).map_err(|error| format!("Failed to save file: {error}"))?;
-    
+
     Ok(())
+}
+
+#[tauri::command]
+fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
+    let repo = git2::Repository::open(&repo_path)
+        .map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir()
+        .ok_or("Cannot read files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize()
+        .map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&file_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let resolved = target.canonicalize()
+        .map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) {
+        return Err("Cannot read images outside the repository.".to_string());
+    }
+
+    if !resolved.is_file() {
+        return Err("The selected path is not a file.".to_string());
+    }
+
+    let extension = resolved.extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if !["png", "jpg", "jpeg", "gif", "webp", "svg"].contains(&extension.as_str()) {
+        return Err("Unsupported image format.".to_string());
+    }
+
+    let metadata = fs::metadata(&resolved)
+        .map_err(|error| error.to_string())?;
+
+    if metadata.len() > 20 * 1024 * 1024 {
+        return Err("Image exceeds the 20 MiB size limit.".to_string());
+    }
+
+    fs::read(&resolved)
+        .map_err(|error| format!("Failed to read image: {error}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1045,6 +1095,7 @@ pub fn run() {
             create_branch,
             merge_branches,
             save_file,
+            read_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
