@@ -1,0 +1,5 @@
+Post-MVP feature ideas:
+- Remote repository functionality
+- Toggle between markdown rendering and raw text
+- Keyboard shortcuts
+- json enabled themes

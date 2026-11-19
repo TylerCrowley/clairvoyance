@@ -4,6 +4,8 @@ import appHTML from "./app.html?raw";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createIcons, Folder, File, Lock } from "lucide";
 import Chart from "chart.js/auto";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 interface GitFileStatus {
   staged: string | null;
@@ -933,6 +935,11 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
     isEditing = false;
 
     updateEditingButtons();
+
+    if (isMarkdownFile(entry.name)) {
+      renderMarkdown(contents, fileContent);
+      return;
+    }
 
     const pre = document.createElement("pre");
     pre.className = "file-text";
@@ -1946,4 +1953,39 @@ function confirmDiscardEdits(): boolean {
   return window.confirm(
     "You have unsaved changes. Discard them?"
   );
+}
+
+function isMarkdownFile(filename: string): boolean {
+  const extension = filename.toLowerCase();
+
+  return extension.endsWith(".md") ||
+    extension.endsWith(".markdown");
+}
+
+function renderMarkdown(
+  contents: string,
+  container: HTMLElement
+): void {
+  const html = marked.parse(contents, {
+    async: false,
+    gfm: true,
+    breaks: false
+  });
+
+  const sanitizedHTML = DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true }
+  });
+
+  const preview = document.createElement("div");
+  preview.className = "markdown-preview";
+
+  preview.innerHTML = sanitizedHTML;
+
+  preview.querySelectorAll("img").forEach(image => image.remove());
+
+  preview.querySelectorAll("a").forEach(link => {
+    link.removeAttribute("href");
+  });
+
+  container.replaceChildren(preview);
 }

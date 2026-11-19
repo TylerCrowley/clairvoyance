@@ -1281,3 +1281,119 @@ main.workspace {
 .file-content:has(.file-editor) {
     overflow: hidden;
 }
+
+.markdown-preview {
+    padding: 20px 24px;
+    color: #e5e7eb;
+    font-size: 14px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4 {
+    margin: 24px 0 12px;
+    line-height: 1.3;
+    color: #e5e7eb;
+}
+
+.markdown-preview h1 {
+    font-size: 26px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #30343d;
+}
+
+.markdown-preview h2 {
+    font-size: 21px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #30343d;
+}
+
+.markdown-preview h3 {
+    font-size: 17px;
+}
+
+.markdown-preview > :first-child {
+    margin-top: 0;
+}
+
+.markdown-preview p {
+    margin: 12px 0;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+    padding-left: 28px;
+    margin: 12px 0;
+}
+
+.markdown-preview li {
+    margin: 4px 0;
+}
+
+.markdown-preview a {
+    color: #61afef;
+}
+
+.markdown-preview blockquote {
+    margin: 16px 0;
+    padding: 8px 16px;
+    border-left: 4px solid #61afef;
+    background: #1c222b;
+    color: #a0a6b0;
+}
+
+.markdown-preview blockquote p {
+    margin: 0;
+}
+
+.markdown-preview pre {
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px solid #30343d;
+    border-radius: 8px;
+    background: #12151b;
+    overflow-x: auto;
+}
+
+.markdown-preview code {
+    font-family: monospace;
+    font-size: 13px;
+}
+
+.markdown-preview :not(pre) > code {
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: #30343d;
+    color: #e5c07b;
+}
+
+.markdown-preview table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+    padding: 10px 12px;
+    border: 1px solid #30343d;
+    text-align: left;
+}
+
+.markdown-preview th {
+    background: #252a33;
+}
+
+.markdown-preview tr:nth-child(even) {
+    background: #1c222b;
+}
+
+.markdown-preview hr {
+    border: 0;
+    border-top: 1px solid #30343d;
+    margin: 24px 0;
+}
