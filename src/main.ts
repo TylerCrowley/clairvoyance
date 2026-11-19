@@ -118,6 +118,8 @@ const cancelMergeButton = document.querySelector<HTMLButtonElement>("#cancel-mer
 const editFileButton = document.querySelector<HTMLButtonElement>("#edit-file-button");
 const cancelEditButton = document.querySelector<HTMLButtonElement>("#cancel-edit-button");
 const saveFileButton = document.querySelector<HTMLButtonElement>("#save-file-button");
+const markdownToggle = document.querySelector<HTMLInputElement>("#markdown-toggle");
+const markdownToggleContainer = document.querySelector<HTMLLabelElement>("#markdown-toggle-container");
 let mergeCurrentBranch = "";
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
@@ -131,6 +133,7 @@ let isEditing = false;
 let originalFileContent = "";
 let editedFileContent = "";
 let currentImageURL: string | null = null;
+let showingMarkdownSource = false;
 type WorkspaceView = "file" | "overview";
 const graphColors = [
   "#61afef",
@@ -478,6 +481,14 @@ saveFileButton?.addEventListener("click", async () => {
   }
 });
 
+markdownToggle?.addEventListener("change", () => {
+    if (!selectedFile || isEditing || showingDiff) return;
+
+    showingMarkdownSource = markdownToggle.checked;
+
+    renderCurrentMarkdownView();
+});
+
 // Adds status totals to directories, makes it much easier to navigate
 function countChangedFiles(entry: TreeEntry): number {
   if (!entry.is_dir) {
@@ -573,6 +584,18 @@ function updateDiffToggle(entry: TreeEntry | null) {
 
   diffToggleContainer.hidden = !hasChanges || Boolean(entry && isImageFile(entry.name));
   diffToggle.checked = hasChanges && showingDiff;
+}
+
+function updateMarkdownToggle(): void {
+  if (!markdownToggle || !markdownToggleContainer) return;
+
+  const isMarkdown = selectedFile !== null &&
+    isMarkdownFile(selectedFile.name);
+
+  markdownToggleContainer.hidden =
+    !isMarkdown || isEditing || showingDiff;
+
+  markdownToggle.checked = showingMarkdownSource;
 }
 
 // This function makes sure the same file is selected when updating or reloading the repo
@@ -961,7 +984,16 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
     editedFileContent = contents;
     isEditing = false;
 
+    showingMarkdownSource = false;
+
     updateEditingButtons();
+    updateMarkdownToggle();
+
+    if (isMarkdownFile(entry.name)) {
+      renderCurrentMarkdownView();
+    } else {
+      renderPlainText(contents, fileContent);
+    }
 
     if (isMarkdownFile(entry.name)) {
       renderMarkdown(contents, fileContent);
@@ -993,6 +1025,54 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   } catch (error) {
     fileContent.textContent = `Unable to open file: ${error}`;
   }
+}
+
+function renderPlainText(
+  contents: string,
+  container: HTMLElement
+): void {
+  const pre = document.createElement("pre");
+  pre.className = "file-text";
+
+  const lines = contents.split("\n");
+
+  lines.forEach((line, index) => {
+    const lineElement = document.createElement("div");
+    lineElement.className = "file-line";
+
+    const lineNumber = document.createElement("span");
+    lineNumber.className = "line-number";
+    lineNumber.textContent = String(index + 1);
+
+    const lineContent = document.createElement("span");
+    lineContent.className = "line-content";
+    lineContent.textContent = line;
+
+    lineElement.append(lineNumber, lineContent);
+    pre.appendChild(lineElement);
+  });
+
+  container.replaceChildren(pre);
+}
+
+function renderCurrentMarkdownView(): void {
+  if (!selectedFile || !isMarkdownFile(selectedFile.name)) {
+    return;
+  }
+
+  const fileContent = document.querySelector<HTMLElement>(
+    "#file-content"
+  );
+
+  if (!fileContent) return;
+
+  if (showingMarkdownSource) {
+    renderPlainText(originalFileContent, fileContent);
+  } else {
+    renderMarkdown(originalFileContent, fileContent);
+  }
+
+  updateMarkdownToggle();
 }
 
 function showWorkspaceView(view: WorkspaceView) {
@@ -1971,6 +2051,7 @@ function startFileEditing() {
   editor.focus();
 
   updateEditingButtons();
+  updateMarkdownToggle();
 }
 
 function confirmDiscardEdits(): boolean {
