@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import "./styles.css";
 import appHTML from "./app.html?raw";
 import { open } from "@tauri-apps/plugin-dialog";
-import { createIcons, Folder, File, Lock } from "lucide";
+import { createIcons, Folder, File, Lock, FileQuestionMark } from "lucide";
 import Chart from "chart.js/auto";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -1015,10 +1015,29 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
 
       return;
     }
-    const contents = await invoke<string>("read_file", {
-      repoPath: currentRepoPath,
-      filePath: entry.path,
-    });
+    let contents: string;
+
+    try {
+      contents = await invoke<string>("read_file", {
+        repoPath: currentRepoPath,
+        filePath: entry.path
+      });
+    } catch (error) {
+      if (String(error).includes("UNSUPPORTED_BINARY_FILE")) {
+        renderUnsupportedFile(entry.name, fileContent);
+
+        isEditing = false;
+        originalFileContent = "";
+        editedFileContent = "";
+
+        updateEditingButtons();
+        updateMarkdownToggle();
+
+        return;
+      }
+
+      throw error;
+    }
 
     originalFileContent = contents;
     editedFileContent = contents;
@@ -2265,4 +2284,35 @@ async function renderDOCX(bytes: number[], container: HTMLElement, isCurrent: ()
   if (!isCurrent()) return;
 
   container.replaceChildren(viewer);
+}
+
+function renderUnsupportedFile(filename: string, container: HTMLElement): void {
+
+  const message = document.createElement("div");
+  message.className = "unsupported-file";
+
+  const icon = document.createElement("i");
+  icon.setAttribute("data-lucide", "file-question-mark");
+  icon.className = "unsupported-file-icon";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Preview unavailable";
+
+  const description = document.createElement("p");
+  description.textContent =
+    "Clairvoyance cannot preview this file as text or a supported document format.";
+
+  const filenameLabel = document.createElement("span");
+  filenameLabel.className = "muted";
+  filenameLabel.textContent = filename;
+
+  message.append(icon, heading, description, filenameLabel);
+  container.replaceChildren(message);
+  createIcons({
+    icons: { FileQuestionMark },
+    attrs: {
+      width: 36,
+      height: 36
+    }
+  });
 }

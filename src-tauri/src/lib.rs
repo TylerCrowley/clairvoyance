@@ -271,7 +271,11 @@ fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
         return Err("File is too large to display (2 MB limit).".to_string());
     }
 
-    std::fs::read_to_string(&file).map_err(|error| format!("Could not read file: {}", error))
+    let bytes = fs::read(&file).map_err(|e| format!("Failed to read file: {e}"))?;
+
+    let contents = String::from_utf8(bytes).map_err(|_| "UNSUPPORTED_BINARY_FILE".to_string())?;
+
+    Ok(contents)
 }
 
 #[tauri::command]
@@ -1025,14 +1029,13 @@ fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(
 
 #[tauri::command]
 fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
-    let repo = git2::Repository::open(&repo_path)
-        .map_err(|error| error.to_string())?;
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo.workdir()
+    let workdir = repo
+        .workdir()
         .ok_or("Cannot read files in a bare repository.")?;
 
-    let repo_root = workdir.canonicalize()
-        .map_err(|error| error.to_string())?;
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
     let supplied_path = Path::new(&file_path);
 
@@ -1042,8 +1045,7 @@ fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
         repo_root.join(supplied_path)
     };
 
-    let resolved = target.canonicalize()
-        .map_err(|error| error.to_string())?;
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
 
     if !resolved.starts_with(&repo_root) {
         return Err("Cannot read images outside the repository.".to_string());
@@ -1053,7 +1055,8 @@ fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
         return Err("The selected path is not a file.".to_string());
     }
 
-    let extension = resolved.extension()
+    let extension = resolved
+        .extension()
         .and_then(|ext| ext.to_str())
         .unwrap_or("")
         .to_lowercase();
@@ -1062,27 +1065,24 @@ fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
         return Err("Unsupported image format.".to_string());
     }
 
-    let metadata = fs::metadata(&resolved)
-        .map_err(|error| error.to_string())?;
+    let metadata = fs::metadata(&resolved).map_err(|error| error.to_string())?;
 
     if metadata.len() > 20 * 1024 * 1024 {
         return Err("Image exceeds the 20 MiB size limit.".to_string());
     }
 
-    fs::read(&resolved)
-        .map_err(|error| format!("Failed to read image: {error}"))
+    fs::read(&resolved).map_err(|error| format!("Failed to read image: {error}"))
 }
 
 #[tauri::command]
 fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
-    let repo = git2::Repository::open(&repo_path)
-        .map_err(|error| error.to_string())?;
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo.workdir()
+    let workdir = repo
+        .workdir()
         .ok_or("Cannot read files in a bare repository.")?;
 
-    let repo_root = workdir.canonicalize()
-        .map_err(|error| error.to_string())?;
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
     let supplied_path = std::path::Path::new(&file_path);
 
@@ -1092,8 +1092,7 @@ fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String
         repo_root.join(supplied_path)
     };
 
-    let resolved = target.canonicalize()
-        .map_err(|error| error.to_string())?;
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
 
     if !resolved.starts_with(&repo_root) {
         return Err("File is outside the selected repository.".to_string());
@@ -1103,7 +1102,8 @@ fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String
         return Err("Selected path is not a regular file.".to_string());
     }
 
-    let extension = resolved.extension()
+    let extension = resolved
+        .extension()
         .and_then(|ext| ext.to_str())
         .unwrap_or("")
         .to_lowercase();
@@ -1112,15 +1112,13 @@ fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String
         return Err("Unsupported document format.".to_string());
     }
 
-    let metadata = std::fs::metadata(&resolved)
-        .map_err(|error| error.to_string())?;
+    let metadata = std::fs::metadata(&resolved).map_err(|error| error.to_string())?;
 
     if metadata.len() > 20 * 1024 * 1024 {
         return Err("Document exceeds the 20 MiB limit.".to_string());
     }
 
-    std::fs::read(&resolved)
-        .map_err(|error| format!("Failed to read document: {error}"))
+    std::fs::read(&resolved).map_err(|error| format!("Failed to read document: {error}"))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
