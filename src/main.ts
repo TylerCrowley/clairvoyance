@@ -6,6 +6,10 @@ import { createIcons, Folder, File, Lock } from "lucide";
 import Chart from "chart.js/auto";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { renderAsync } from "docx-preview";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerURL from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerURL;
 
 interface GitFileStatus {
   staged: string | null;
@@ -482,11 +486,11 @@ saveFileButton?.addEventListener("click", async () => {
 });
 
 markdownToggle?.addEventListener("change", () => {
-    if (!selectedFile || isEditing || showingDiff) return;
+  if (!selectedFile || isEditing || showingDiff) return;
 
-    showingMarkdownSource = markdownToggle.checked;
+  showingMarkdownSource = markdownToggle.checked;
 
-    renderCurrentMarkdownView();
+  renderCurrentMarkdownView();
 });
 
 // Adds status totals to directories, makes it much easier to navigate
@@ -533,7 +537,7 @@ function updateEditingButtons() {
     return;
   }
 
-  editFileButton.hidden = !selectedFile || isImageFile(selectedFile.name) || isEditing || showingDiff;
+  editFileButton.hidden = !selectedFile || isImageFile(selectedFile.name) || isPDFFile(selectedFile.name) || isDOCXFile(selectedFile.name) || isEditing || showingDiff;
 
   cancelEditButton.hidden = !isEditing;
   saveFileButton.hidden = !isEditing;
@@ -582,7 +586,7 @@ function updateDiffToggle(entry: TreeEntry | null) {
     entry?.status?.staged || entry?.status?.unstaged
   );
 
-  diffToggleContainer.hidden = !hasChanges || Boolean(entry && isImageFile(entry.name));
+  diffToggleContainer.hidden = !hasChanges || Boolean(entry && (isImageFile(entry.name) || isPDFFile(entry.name) || isDOCXFile(entry.name)));
   diffToggle.checked = hasChanges && showingDiff;
 }
 
@@ -973,6 +977,42 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
       editedFileContent = "";
 
       updateEditingButtons();
+      return;
+    }
+    if (isPDFFile(entry.name)) {
+      isEditing = false;
+      originalFileContent = "";
+      editedFileContent = "";
+
+      updateEditingButtons();
+
+      const bytes = await invoke<number[]>("read_document", {
+        repoPath: currentRepoPath,
+        filePath: entry.path
+      });
+
+      if (selectedFile !== entry) return;
+
+      await renderPDF(bytes, fileContent);
+
+      return;
+    }
+    if (isDOCXFile(entry.name)) {
+      isEditing = false;
+      originalFileContent = "";
+      editedFileContent = "";
+
+      updateEditingButtons();
+
+      const bytes = await invoke<number[]>("read_document", {
+        repoPath: currentRepoPath,
+        filePath: entry.path
+      });
+
+      if (selectedFile !== entry) return;
+
+      await renderDOCX(bytes, fileContent, () => selectedFile === entry);
+
       return;
     }
     const contents = await invoke<string>("read_file", {
@@ -2074,6 +2114,14 @@ function isImageFile(filename: string): boolean {
   return /\.(png|jpe?g|gif|webp|svg)$/i.test(filename);
 }
 
+function isPDFFile(filename: string): boolean {
+  return filename.toLowerCase().endsWith(".pdf");
+}
+
+function isDOCXFile(filename: string): boolean {
+  return filename.toLowerCase().endsWith(".docx");
+}
+
 function renderMarkdown(contents: string, container: HTMLElement): void {
   const html = marked.parse(contents, {
     async: false,
@@ -2155,4 +2203,66 @@ function renderImage(url: string, container: HTMLElement): void {
   image.alt = "Image preview";
 
   container.replaceChildren(image);
+}
+
+async function renderPDF(bytes: number[], container: HTMLElement): Promise<void> {
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(bytes)
+  });
+
+  const pdf = await loadingTask.promise;
+
+  const viewer = document.createElement("div");
+  viewer.className = "pdf-viewer";
+
+  container.replaceChildren(viewer);
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    const page = await pdf.getPage(pageNumber);
+
+    const viewport = page.getViewport({ scale: 1.5 });
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Unable to create PDF canvas.");
+    }
+
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+
+    canvas.className = "pdf-page";
+
+    viewer.appendChild(canvas);
+
+    await page.render({
+      canvas,
+      canvasContext: context,
+      viewport
+    }).promise;
+  }
+}
+
+async function renderDOCX(bytes: number[], container: HTMLElement, isCurrent: () => boolean): Promise<void> {
+  const viewer = document.createElement("div");
+  viewer.className = "docx-viewer";
+
+  await renderAsync(
+    new Uint8Array(bytes),
+    viewer,
+    undefined,
+    {
+      inWrapper: true,
+      breakPages: true,
+      renderHeaders: true,
+      renderFooters: true,
+      renderFootnotes: true,
+      useBase64URL: true
+    }
+  );
+
+  if (!isCurrent()) return;
+
+  container.replaceChildren(viewer);
 }

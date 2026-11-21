@@ -1073,6 +1073,56 @@ fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("Failed to read image: {error}"))
 }
 
+#[tauri::command]
+fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
+    let repo = git2::Repository::open(&repo_path)
+        .map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir()
+        .ok_or("Cannot read files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize()
+        .map_err(|error| error.to_string())?;
+
+    let supplied_path = std::path::Path::new(&file_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let resolved = target.canonicalize()
+        .map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) {
+        return Err("File is outside the selected repository.".to_string());
+    }
+
+    if !resolved.is_file() {
+        return Err("Selected path is not a regular file.".to_string());
+    }
+
+    let extension = resolved.extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if !["pdf", "docx"].contains(&extension.as_str()) {
+        return Err("Unsupported document format.".to_string());
+    }
+
+    let metadata = std::fs::metadata(&resolved)
+        .map_err(|error| error.to_string())?;
+
+    if metadata.len() > 20 * 1024 * 1024 {
+        return Err("Document exceeds the 20 MiB limit.".to_string());
+    }
+
+    std::fs::read(&resolved)
+        .map_err(|error| format!("Failed to read document: {error}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1096,6 +1146,7 @@ pub fn run() {
             merge_branches,
             save_file,
             read_image,
+            read_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

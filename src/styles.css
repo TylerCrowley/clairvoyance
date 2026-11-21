@@ -1418,3 +1418,50 @@ main.workspace {
 .diff-toggle-container[hidden] {
     display: none;
 }
+
+.pdf-viewer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+
+    padding: 24px;
+    min-width: 0;
+}
+
+.pdf-page {
+    display: block;
+    max-width: 100%;
+    height: auto;
+
+    background: white;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.docx-viewer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    min-width: 0;
+    padding: 24px;
+    overflow-x: auto;
+}
+
+.docx-viewer .docx-wrapper {
+    width: 100%;
+    padding: 0;
+    background: transparent;
+}
+
+.docx-viewer .docx-wrapper > section.docx {
+    box-sizing: border-box;
+
+    max-width: 100%;
+    margin: 0 auto 20px;
+
+    background: white;
+    color: black;
+
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
