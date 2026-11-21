@@ -2,7 +2,24 @@ import { invoke } from "@tauri-apps/api/core";
 import "./styles.css";
 import appHTML from "./app.html?raw";
 import { open } from "@tauri-apps/plugin-dialog";
-import { createIcons, Folder, File, Lock, FileQuestionMark } from "lucide";
+import {
+  createIcons,
+  Folder,
+  FolderOpen,
+  Lock,
+  FileCode,
+  FileText,
+  FileType,
+  FileImage,
+  FileBraces,
+  FileCog,
+  FileArchive,
+  FileSpreadsheet,
+  FileMusic,
+  FilePlay,
+  FileTerminal,
+  FileQuestionMark
+} from "lucide";
 import Chart from "chart.js/auto";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -614,6 +631,132 @@ function findFileByPath(entry: TreeEntry, path: string): TreeEntry | null {
   return null;
 }
 
+function getFileIcon(filename: string): string {
+  const name = filename.toLowerCase();
+  const extension = name.split(".").pop() ?? "";
+
+  if (["dockerfile", "makefile", "justfile"].includes(name)) {
+    return "file-terminal";
+  }
+
+  if (name === ".gitignore" || name === ".gitattributes") {
+    return "file-cog";
+  }
+
+  if (name === "license" || name === "license.md") {
+    return "file-text";
+  }
+
+  // I don't love switch cases, but this is just far more readable
+  switch (extension) {
+    case "rs":
+    case "ts":
+    case "tsx":
+    case "js":
+    case "jsx":
+    case "py":
+    case "java":
+    case "c":
+    case "cpp":
+    case "h":
+    case "cs":
+    case "go":
+    case "sh":
+      return "file-code";
+
+    case "html":
+    case "css":
+    case "scss":
+      return "file-code";
+
+    case "md":
+    case "markdown":
+    case "txt":
+    case "log":
+    case "doc":
+    case "docx":
+    case "odt":
+    case "rtf":
+      return "file-text";
+
+    case "pdf":
+      return "file-type";
+
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "gif":
+    case "webp":
+    case "svg":
+    case "ico":
+      return "file-image";
+
+    case "json":
+    case "jsonc":
+      return "file-braces";
+
+    case "toml":
+    case "yaml":
+    case "yml":
+    case "xml":
+    case "ini":
+      return "file-cog";
+
+    case "zip":
+    case "tar":
+    case "gz":
+    case "7z":
+    case "rar":
+      return "file-archive";
+
+    case "csv":
+    case "xlsx":
+    case "xls":
+    case "ods":
+      return "file-spreadsheet";
+
+    case "mp3":
+    case "wav":
+    case "ogg":
+    case "flac":
+      return "file-music";
+
+    case "mp4":
+    case "webm":
+    case "mov":
+      return "file-play";
+
+    default:
+      return "file-question-mark";
+  }
+}
+
+function renderTreeIcons(): void {
+  const tree = document.querySelector<HTMLElement>("#tree");
+  if (!tree) return;
+
+  createIcons({
+    icons: {
+      Folder,
+      FolderOpen,
+      Lock,
+      FileCode,
+      FileText,
+      FileType,
+      FileImage,
+      FileBraces,
+      FileCog,
+      FileArchive,
+      FileSpreadsheet,
+      FileMusic,
+      FilePlay,
+      FileTerminal,
+      FileQuestionMark
+    },
+    root: tree
+  });
+}
+
 // Recursively renders the file tree
 function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<string> = new Set()): HTMLElement {
   if (entry.is_dir) {
@@ -627,7 +770,7 @@ function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<
 
     icon.setAttribute(
       "data-lucide",
-      entry.unreadable ? "lock" : "folder"
+      entry.unreadable ? "lock" : details.open ? "folder-open" : "folder"
     );
     icon.className = "tree-icon";
     summary.appendChild(icon);
@@ -675,6 +818,23 @@ function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<
       children.appendChild(renderEntry(child, false, expandedDirectories));
     }
     details.append(summary, children);
+    details.addEventListener("toggle", () => {
+      if (entry.unreadable) return;
+
+      const iconName = details.open ? "folder-open" : "folder";
+
+      const newIcon = document.createElement("i");
+      newIcon.setAttribute("data-lucide", iconName);
+      newIcon.className = "tree-icon";
+
+      const oldIcon = summary.querySelector(".tree-icon");
+      oldIcon?.replaceWith(newIcon);
+
+      createIcons({
+        icons: { Folder, FolderOpen },
+        root: summary
+      });
+    });
     return details;
   }
 
@@ -686,7 +846,7 @@ function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<
   });
 
   const icon = document.createElement("i");
-  icon.setAttribute("data-lucide", "file");
+  icon.setAttribute("data-lucide", getFileIcon(entry.name));
   icon.className = "tree-icon";
 
   file.appendChild(icon);
@@ -751,15 +911,11 @@ async function loadRepository(path: string) {
 
     const expandedDirectories =
       currentRepoPath === path ? getExpandedDirectories() : new Set<string>();
+
     treeContainer.replaceChildren(renderEntry(root, true, expandedDirectories));
+
+    renderTreeIcons();
     renderStatusSummary(root);
-    createIcons({
-      icons: {
-        Folder,
-        File,
-        Lock,
-      },
-    });
 
     if (selectedPath) {
       const updatedFile = findFileByPath(root, selectedPath);
