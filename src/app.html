@@ -4,23 +4,38 @@
         <h1>Repository Explorer</h1>
     </div>
     <div class="repo-controls">
-        <button id="select-repo" class="button button-primary">
-            <span>+</span>
-            Open Repository
-        </button>
-        <button id="refresh-repo" class="button" disabled>
-            Refresh
-        </button>
+        <div class="repo-toolbar">
+            <div class="repo-toolbar-primary">
+                <button id="select-repo" class="button repo-toolbar-button">
+                    <i data-lucide="folder-open"></i>
+                    <span>Open</span>
+                </button>
+                <button id="create-repository-button" class="button repo-toolbar-button">
+                    <i data-lucide="folder-plus"></i>
+                    <span>Create</span>
+                </button>
+            </div>
+            <div class="repo-toolbar-secondary">
+                <button id="refresh-repo" class="button repo-toolbar-button" disabled>
+                    <i data-lucide="refresh-cw"></i>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
     </div>
     <span id="status" class="status">No repository selected</span>
 </header>
 <main class="workspace">
     <section class="panel workspace-header">
-        <div>
-            <h2 id="repo-name">No repository open</h2>
-            <span id="repo-path" class="repo-path">
-                No repository path
-            </span>
+        <div class="repository-identity">
+            <i data-lucide="git-branch" class="repository-identity-icon"></i>
+            <div class="repository-identity-details">
+                <div class="repository-identity-heading">
+                    <span id="repo-name"></span>
+                    <span id="repo-branch" class="repository-branch"></span>
+                </div>
+                <span id="repo-path" class="muted"></span>
+            </div>
         </div>
         <div class="repository-actions">
             <div id="repo-status-summary"></div>
@@ -33,6 +48,13 @@
         <aside class="panel explorer-panel">
             <div class="explorer-panel-heading">
                 <h3>Explorer</h3>
+                <div id="hidden-files-container" class="hidden-files-control" hidden>
+                    <span class="hidden-files-label">Show Hidden Files</span>
+                    <label class="diff-toggle-container">
+                        <input id="hidden-files-toggle" type="checkbox">
+                        <span class="diff-toggle-slider"></span>
+                    </label>
+                </div>
             </div>
             <div id="tree" class="tree">
                 <p class="muted">
@@ -295,4 +317,71 @@
             </form>
         </div>
     </dialog>
+    <dialog id="delete-entry-dialog" class="app-dialog">
+        <div class="app-dialog-content">
+            <h2>Confirm Deletion</h2>
+            <p id="delete-entry-message"></p>
+            <p class="delete-warning">
+                This action is permanent. Uncommitted changes and untracked files
+                may not be recoverable through Git.
+            </p>
+            <div class="dialog-actions">
+                <button id="cancel-delete-button" class="button">
+                    Cancel
+                </button>
+                <button id="confirm-delete-button" class="button button-danger">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </dialog>
+    <dialog id="init-repository-dialog" class="app-dialog">
+        <div class="app-dialog-content">
+            <h2>Initialize Repository</h2>
+            <p id="init-repository-description"></p>
+            <label for="init-repository-path">Location</label>
+            <input id="init-repository-path" type="text" readonly>
+            <div id="init-repository-name-container">
+                <label for="init-repository-name">Repository Name</label>
+                <input id="init-repository-name" type="text" placeholder="my-project">
+            </div>
+            <label for="init-repository-branch">Initial Branch</label>
+            <input id="init-repository-branch" type="text" value="main" required>
+            <p class="muted">
+                Initializes a local Git repository without creating an initial commit.
+            </p>
+            <div class="dialog-actions">
+                <button id="cancel-init-button" class="button" type="button">
+                    Cancel
+                </button>
+                <button id="confirm-init-button" class="button" type="button">
+                    Initialize Repository
+                </button>
+            </div>
+        </div>
+    </dialog>
+    <div id="explorer-context-menu" class="explorer-context-menu" hidden>
+        <button type="button" data-action="new-file">
+            <i data-lucide="file-plus"></i>
+            New File
+        </button>
+        <button type="button" data-action="new-folder">
+            <i data-lucide="folder-plus"></i>
+            New Folder
+        </button>
+        <hr class="context-menu-separator">
+        <button type="button" data-action="rename">
+            <i data-lucide="pencil"></i>
+            Rename
+        </button>
+        <button type="button" data-action="move">
+            <i data-lucide="folder-input"></i>
+            Move
+        </button>
+        <hr class="context-menu-separator">
+        <button type="button" data-action="delete" class="danger">
+            <i data-lucide="trash-2"></i>
+            Delete
+        </button>
+    </div>
 </main>

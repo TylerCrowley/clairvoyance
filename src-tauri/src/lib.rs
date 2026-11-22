@@ -80,6 +80,7 @@ fn build_tree(
     path: &Path,
     repo_root: &Path,
     statuses: &HashMap<String, GitFileStatus>,
+    show_hidden: bool,
 ) -> TreeEntry {
     let mut entries = Vec::new();
 
@@ -115,8 +116,7 @@ fn build_tree(
 
         let name = entry.file_name().to_string_lossy().into_owned();
 
-        // Ignores hidden files
-        if name.starts_with('.') {
+        if name == ".git" || (!show_hidden && name.starts_with('.')) {
             continue;
         }
 
@@ -144,7 +144,7 @@ fn build_tree(
         let is_dir = metadata.is_dir() && !metadata.file_type().is_symlink();
 
         let (children, unreadable) = if is_dir {
-            let child_tree = build_tree(&entry_path, repo_root, statuses);
+            let child_tree = build_tree(&entry_path, repo_root, statuses, show_hidden);
             let unreadable = child_tree.unreadable;
 
             (child_tree.children, unreadable)
@@ -179,7 +179,7 @@ fn build_tree(
 }
 
 #[tauri::command]
-fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
+fn get_repository_tree(path: String, show_hidden: bool) -> Result<TreeEntry, String> {
     let repo = Repository::open(&path)
         .map_err(|_| "The selected folder is not a valid Git repository.".to_string())?;
 
@@ -189,7 +189,7 @@ fn get_repository_tree(path: String) -> Result<TreeEntry, String> {
 
     let statuses = get_repository_statuses(&repo)?;
 
-    Ok(build_tree(root, root, &statuses))
+    Ok(build_tree(root, root, &statuses, show_hidden))
 }
 
 // Creates a hash map of the statuses of each file in the repository, this seemed much faster than grabbing each one individually
@@ -1121,6 +1121,416 @@ fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String
     std::fs::read(&resolved).map_err(|error| format!("Failed to read document: {error}"))
 }
 
+#[tauri::command]
+fn create_entry(
+    repo_path: String,
+    parent_path: String,
+    name: String,
+    is_directory: bool,
+) -> Result<(), String> {
+    if name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains('\0')
+        || name.eq_ignore_ascii_case(".git")
+    {
+        return Err("Invalid file or folder name.".to_string());
+    }
+
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo
+        .workdir()
+        .ok_or("Cannot create files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_parent = Path::new(&parent_path);
+
+    let parent = if supplied_parent.is_absolute() {
+        supplied_parent.to_path_buf()
+    } else {
+        repo_root.join(supplied_parent)
+    };
+
+    let resolved_parent = parent.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved_parent.starts_with(&repo_root) {
+        return Err("Cannot create entries outside the repository.".into());
+    }
+
+    if !resolved_parent.is_dir() {
+        return Err("The selected parent is not a directory.".into());
+    }
+
+    let relative_parent = resolved_parent
+        .strip_prefix(&repo_root)
+        .map_err(|error| error.to_string())?;
+
+    if relative_parent.components().any(|component| {
+        component
+            .as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(".git")
+    }) {
+        return Err("Cannot modify Git metadata.".into());
+    }
+
+    let target = resolved_parent.join(&name);
+
+    if is_directory {
+        std::fs::create_dir(&target)
+            .map_err(|error| format!("Failed to create folder: {error}"))?;
+    } else {
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+            .map_err(|error| format!("Failed to create file: {error}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn rename_entry(repo_path: String, entry_path: String, new_name: String) -> Result<(), String> {
+    if new_name.is_empty()
+        || new_name == "."
+        || new_name == ".."
+        || new_name.contains('/')
+        || new_name.contains('\\')
+        || new_name.contains('\0')
+        || new_name.eq_ignore_ascii_case(".git")
+    {
+        return Err("Invalid file or folder name.".into());
+    }
+
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo
+        .workdir()
+        .ok_or("Cannot rename entries in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&entry_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let metadata = fs::symlink_metadata(&target).map_err(|error| error.to_string())?;
+
+    if metadata.file_type().is_symlink() {
+        return Err("Renaming symbolic links is not supported.".into());
+    }
+
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) || resolved == repo_root {
+        return Err("Cannot rename this path.".into());
+    }
+
+    let relative_path = resolved
+        .strip_prefix(&repo_root)
+        .map_err(|error| error.to_string())?;
+
+    if relative_path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(".git")
+    }) {
+        return Err("Cannot modify Git metadata.".into());
+    }
+
+    let parent = resolved
+        .parent()
+        .ok_or("Could not determine the parent directory.")?;
+
+    let destination = parent.join(&new_name);
+
+    if destination == resolved {
+        return Ok(());
+    }
+
+    if fs::symlink_metadata(&destination).is_ok() {
+        return Err("A file or folder with that name already exists.".into());
+    }
+
+    fs::rename(&resolved, &destination)
+        .map_err(|error| format!("Failed to rename entry: {error}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_entry(repo_path: String, entry_path: String) -> Result<(), String> {
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo
+        .workdir()
+        .ok_or("Cannot delete files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&entry_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let metadata = fs::symlink_metadata(&target).map_err(|error| error.to_string())?;
+
+    if metadata.file_type().is_symlink() {
+        return Err("Deleting symbolic links is not supported.".into());
+    }
+
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) || resolved == repo_root {
+        return Err("Cannot delete this path.".into());
+    }
+
+    let relative_path = resolved
+        .strip_prefix(&repo_root)
+        .map_err(|error| error.to_string())?;
+
+    if relative_path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(".git")
+    }) {
+        return Err("Cannot modify Git metadata.".into());
+    }
+
+    if metadata.is_dir() && contains_git_metadata(&resolved)? {
+        return Err("This directory contains Git metadata and cannot be deleted.".into());
+    }
+
+    if metadata.is_dir() {
+        fs::remove_dir_all(&resolved)
+            .map_err(|error| format!("Failed to delete directory: {error}"))?;
+    } else if metadata.is_file() {
+        fs::remove_file(&resolved).map_err(|error| format!("Failed to delete file: {error}"))?;
+    } else {
+        return Err("Unsupported filesystem entry.".into());
+    }
+
+    Ok(())
+}
+
+fn contains_git_metadata(path: &Path) -> Result<bool, String> {
+    if !path.is_dir() {
+        return Ok(false);
+    }
+
+    for entry in std::fs::read_dir(path).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+
+        if entry.file_name().to_string_lossy() == ".git" {
+            return Ok(true);
+        }
+
+        let metadata = std::fs::symlink_metadata(entry.path()).map_err(|e| e.to_string())?;
+
+        if metadata.is_dir() && contains_git_metadata(&entry.path())? {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+#[tauri::command]
+fn move_entry(
+    repo_path: String,
+    entry_path: String,
+    destination_path: String,
+) -> Result<(), String> {
+    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo
+        .workdir()
+        .ok_or("Cannot move files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let resolve = |path: &str| -> Result<std::path::PathBuf, String> {
+        let supplied = Path::new(path);
+
+        let target = if supplied.is_absolute() {
+            supplied.to_path_buf()
+        } else {
+            repo_root.join(supplied)
+        };
+
+        target.canonicalize().map_err(|error| error.to_string())
+    };
+
+    let source = resolve(&entry_path)?;
+    let destination_dir = resolve(&destination_path)?;
+
+    if !source.starts_with(&repo_root) || !destination_dir.starts_with(&repo_root) {
+        return Err("Cannot move files outside the repository.".into());
+    }
+
+    if source == repo_root {
+        return Err("Cannot move the repository root.".into());
+    }
+
+    for path in [&source, &destination_dir] {
+        let relative = path
+            .strip_prefix(&repo_root)
+            .map_err(|error| error.to_string())?;
+
+        if relative.components().any(|component| {
+            component
+                .as_os_str()
+                .to_string_lossy()
+                .eq_ignore_ascii_case(".git")
+        }) {
+            return Err("Cannot modify Git metadata.".into());
+        }
+    }
+
+    let supplied_source = Path::new(&entry_path);
+
+    let original_source = if supplied_source.is_absolute() {
+        supplied_source.to_path_buf()
+    } else {
+        repo_root.join(supplied_source)
+    };
+
+    let metadata = fs::symlink_metadata(&original_source).map_err(|error| error.to_string())?;
+
+    if metadata.file_type().is_symlink() {
+        return Err("Moving symbolic links is not supported.".into());
+    }
+
+    if !metadata.is_file() && !metadata.is_dir() {
+        return Err("Unsupported filesystem entry.".into());
+    }
+
+    if !destination_dir.is_dir() {
+        return Err("Destination must be a directory.".into());
+    }
+
+    if metadata.is_dir() && destination_dir.starts_with(&source) {
+        return Err("Cannot move a folder inside itself.".into());
+    }
+
+    if metadata.is_dir() && contains_git_metadata(&source)? {
+        return Err("Cannot move a directory containing Git metadata.".into());
+    }
+
+    let filename = source
+        .file_name()
+        .ok_or("Could not determine the entry name.")?;
+
+    let destination = destination_dir.join(filename);
+
+    if destination == source {
+        return Ok(());
+    }
+
+    if fs::symlink_metadata(&destination).is_ok() {
+        return Err("A file or folder with that name already exists in the destination.".into());
+    }
+
+    fs::rename(&source, &destination).map_err(|error| format!("Failed to move entry: {error}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn initialize_repository(
+    parent_path: String,
+    new_name: Option<String>,
+    initial_branch: String,
+) -> Result<String, String> {
+    let parent = Path::new(&parent_path)
+        .canonicalize()
+        .map_err(|e| format!("Invalid directory: {e}"))?;
+
+    if !parent.is_dir() {
+        return Err("The selected location is not a directory.".into());
+    }
+
+    let valid_branch = git2::Branch::name_is_valid(&initial_branch).map_err(|e| e.to_string())?;
+
+    if !valid_branch {
+        return Err("Invalid Git branch name.".into());
+    }
+
+    if git2::Repository::discover(&parent).is_ok() {
+        return Err("The selected directory is already inside a Git repository.".into());
+    }
+
+    let target = if let Some(name) = new_name {
+        if name.is_empty()
+            || name == "."
+            || name == ".."
+            || name.contains('/')
+            || name.contains('\\')
+            || name.contains('\0')
+            || name.eq_ignore_ascii_case(".git")
+        {
+            return Err("Invalid repository name.".into());
+        }
+
+        let path = parent.join(name);
+
+        fs::create_dir(&path).map_err(|e| format!("Cannot create repository folder: {e}"))?;
+
+        path
+    } else {
+        parent
+    };
+
+    let mut options = git2::RepositoryInitOptions::new();
+
+    options
+        .bare(false)
+        .no_reinit(true)
+        .initial_head(&initial_branch);
+
+    git2::Repository::init_opts(&target, &options)
+        .map_err(|e| format!("Failed to initialize repository: {e}"))?;
+
+    Ok(target.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn is_git_repository(path: String) -> Result<bool, String> {
+    let directory = std::path::Path::new(&path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+
+    if !directory.is_dir() {
+        return Err("Selected path is not a directory.".into());
+    }
+
+    match git2::Repository::open(&directory) {
+        Ok(repo) => {
+            let workdir = match repo.workdir() {
+                Some(path) => path,
+                None => return Ok(false),
+            };
+
+            Ok(workdir.canonicalize().map_err(|e| e.to_string())? == directory)
+        }
+        Err(error) if error.code() == git2::ErrorCode::NotFound => Ok(false),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1145,6 +1555,12 @@ pub fn run() {
             save_file,
             read_image,
             read_document,
+            create_entry,
+            rename_entry,
+            delete_entry,
+            move_entry,
+            initialize_repository,
+            is_git_repository,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

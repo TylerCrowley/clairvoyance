@@ -1,4 +1,0 @@
-Post-MVP feature ideas:
-- Remote repository functionality
-- Keyboard shortcuts
-- json enabled themes

@@ -18,7 +18,14 @@ import {
   FileMusic,
   FilePlay,
   FileTerminal,
-  FileQuestionMark
+  FileQuestionMark,
+  FilePlus,
+  FolderPlus,
+  Pencil,
+  FolderInput,
+  Trash2,
+  RefreshCw,
+  GitBranch,
 } from "lucide";
 import Chart from "chart.js/auto";
 import { marked } from "marked";
@@ -110,11 +117,13 @@ if (!app) {
 
 // Main HTML code for the interface
 app.innerHTML = appHTML;
+renderRepositoryToolbarIcons()
 
 // Variable declearation
 const treeContainer = document.querySelector<HTMLDivElement>("#tree")!;
 const status = document.querySelector<HTMLSpanElement>("#status")!;
 const repoName = document.querySelector<HTMLHeadingElement>("#repo-name")!;
+const repoBranch = document.querySelector<HTMLSpanElement>("#repo-branch");
 const selectButton = document.querySelector<HTMLButtonElement>("#select-repo");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-repo");
 const stageButton = document.querySelector<HTMLButtonElement>("#stage-button");
@@ -141,6 +150,23 @@ const cancelEditButton = document.querySelector<HTMLButtonElement>("#cancel-edit
 const saveFileButton = document.querySelector<HTMLButtonElement>("#save-file-button");
 const markdownToggle = document.querySelector<HTMLInputElement>("#markdown-toggle");
 const markdownToggleContainer = document.querySelector<HTMLLabelElement>("#markdown-toggle-container");
+const hiddenFilesToggle = document.querySelector<HTMLInputElement>("#hidden-files-toggle");
+const hiddenFilesContainer = document.querySelector<HTMLElement>("#hidden-files-container");
+const explorerContextMenu = document.querySelector<HTMLDivElement>("#explorer-context-menu");
+const deleteEntryDialog = document.querySelector<HTMLDialogElement>("#delete-entry-dialog");
+const deleteEntryMessage = document.querySelector<HTMLParagraphElement>("#delete-entry-message");
+const cancelDeleteButton = document.querySelector<HTMLButtonElement>("#cancel-delete-button");
+const confirmDeleteButton = document.querySelector<HTMLButtonElement>("#confirm-delete-button");
+const initRepositoryDialog = document.querySelector<HTMLDialogElement>("#init-repository-dialog");
+const initRepositoryDescription = document.querySelector<HTMLElement>("#init-repository-description");
+const initRepositoryPath = document.querySelector<HTMLInputElement>("#init-repository-path");
+const initRepositoryName = document.querySelector<HTMLInputElement>("#init-repository-name");
+const initRepositoryNameContainer = document.querySelector<HTMLElement>("#init-repository-name-container");
+const initRepositoryBranch = document.querySelector<HTMLInputElement>("#init-repository-branch");
+const cancelInitButton = document.querySelector<HTMLButtonElement>("#cancel-init-button");
+const confirmInitButton = document.querySelector<HTMLButtonElement>("#confirm-init-button");
+const createRepositoryButton = document.querySelector<HTMLButtonElement>("#create-repository-button");
+
 let mergeCurrentBranch = "";
 let selectedFile: TreeEntry | null = null;
 let currentRepoPath: string | null = null;
@@ -155,7 +181,14 @@ let originalFileContent = "";
 let editedFileContent = "";
 let currentImageURL: string | null = null;
 let showingMarkdownSource = false;
+let showHiddenFiles = false;
+let contextMenuEntry: TreeEntry | null = null;
+let contextMenuIsRoot = false;
+let pendingDeleteEntry: TreeEntry | null = null;
+let repositoryInitMode: RepositoryInitMode = "new";
+type RepositoryInitMode = "new" | "existing";
 type WorkspaceView = "file" | "overview";
+
 const graphColors = [
   "#61afef",
   "#50b77a",
@@ -180,7 +213,23 @@ selectButton?.addEventListener("click", async () => {
   if (typeof selected !== "string") {
     return;
   }
-  await loadRepository(selected);
+  try {
+    const isRepository = await invoke<boolean>(
+      "is_git_repository",
+      { path: selected }
+    );
+
+    if (isRepository) {
+      await loadRepository(selected);
+    } else {
+      showInitializeRepositoryDialog(
+        selected,
+        "existing"
+      );
+    }
+  } catch (error) {
+    alert(`Could not open directory: ${error}`);
+  }
 });
 
 // The button to refresh the file tree, in case anything is moved or deleted
@@ -510,6 +559,150 @@ markdownToggle?.addEventListener("change", () => {
   renderCurrentMarkdownView();
 });
 
+hiddenFilesToggle?.addEventListener("change", () => {
+  showHiddenFiles = hiddenFilesToggle.checked;
+
+  if (currentRepoPath) {
+    void loadRepository(currentRepoPath);
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (
+    !explorerContextMenu?.contains(event.target as Node)
+  ) {
+    hideExplorerContextMenu();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideExplorerContextMenu();
+  }
+});
+
+window.addEventListener("blur", hideExplorerContextMenu);
+
+explorerContextMenu?.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+    "button[data-action]"
+  );
+
+  if (!button || !contextMenuEntry) return;
+
+  const entry = contextMenuEntry;
+  const action = button.dataset.action;
+
+  hideExplorerContextMenu();
+
+  switch (action) {
+    case "new-file":
+      void createExplorerEntry(entry, false);
+      break;
+
+    case "new-folder":
+      void createExplorerEntry(entry, true);
+      break;
+
+    case "rename":
+      if (!contextMenuIsRoot) {
+        void renameExplorerEntry(entry);
+      }
+      break;
+
+    case "move":
+      if (!contextMenuIsRoot) {
+        moveExplorerEntry(entry);
+      }
+      break;
+
+    case "delete":
+      if (!contextMenuIsRoot) {
+        showDeleteConfirmation(entry);
+      }
+      break;
+  }
+});
+
+cancelDeleteButton?.addEventListener("click", () => {
+  deleteEntryDialog?.close();
+});
+
+confirmDeleteButton?.addEventListener("click", () => {
+  if (!pendingDeleteEntry) return;
+
+  const entry = pendingDeleteEntry;
+  pendingDeleteEntry = null;
+
+  deleteEntryDialog?.close();
+
+  void deleteExplorerEntry(entry);
+});
+
+deleteEntryDialog?.addEventListener("close", () => {
+  pendingDeleteEntry = null;
+});
+
+cancelInitButton?.addEventListener("click", () => {
+  initRepositoryDialog?.close();
+});
+
+confirmInitButton?.addEventListener("click", async () => {
+  if (
+    !initRepositoryPath ||
+    !initRepositoryName ||
+    !initRepositoryBranch ||
+    !confirmInitButton
+  ) {
+    return;
+  }
+
+  const parentPath = initRepositoryPath.value;
+  const initialBranch = initRepositoryBranch.value.trim();
+
+  const newName = repositoryInitMode === "new"
+    ? initRepositoryName.value.trim()
+    : null;
+
+  if (!initialBranch || (repositoryInitMode === "new" && !newName)) {
+    alert("Please complete the required fields.");
+    return;
+  }
+
+  confirmInitButton.disabled = true;
+
+  try {
+    const repositoryPath = await invoke<string>(
+      "initialize_repository",
+      {
+        parentPath,
+        newName,
+        initialBranch,
+      }
+    );
+
+    initRepositoryDialog?.close();
+
+    await loadRepository(repositoryPath);
+  } catch (error) {
+    alert(`Could not initialize repository: ${error}`);
+  } finally {
+    confirmInitButton.disabled = false;
+  }
+});
+
+createRepositoryButton?.addEventListener("click", async () => {
+  const parentPath = await open({
+    directory: true,
+    multiple: false,
+    title: "Choose a location for the new repository",
+  });
+
+  if (!parentPath) return;
+
+  showInitializeRepositoryDialog(parentPath, "new");
+});
+
 // Adds status totals to directories, makes it much easier to navigate
 function countChangedFiles(entry: TreeEntry): number {
   if (!entry.is_dir) {
@@ -734,7 +927,6 @@ function getFileIcon(filename: string): string {
 function renderTreeIcons(): void {
   const tree = document.querySelector<HTMLElement>("#tree");
   if (!tree) return;
-
   createIcons({
     icons: {
       Folder,
@@ -755,6 +947,43 @@ function renderTreeIcons(): void {
     },
     root: tree
   });
+  if (explorerContextMenu) {
+    createIcons({
+      icons: {
+        FilePlus,
+        FolderPlus,
+        Pencil,
+        FolderInput,
+        Trash2
+      },
+      root: explorerContextMenu,
+    });
+  }
+}
+
+function renderRepositoryToolbarIcons(): void {
+  const controls = document.querySelector<HTMLElement>(".repo-controls");
+
+  if (controls) {
+    createIcons({
+      icons: {
+        FolderOpen,
+        FolderPlus,
+        RefreshCw,
+      },
+      root: controls,
+    });
+  }
+
+  const repositoryIdentity =
+    document.querySelector<HTMLElement>(".repository-identity");
+
+  if (repositoryIdentity) {
+    createIcons({
+      icons: { GitBranch },
+      root: repositoryIdentity,
+    });
+  }
 }
 
 // Recursively renders the file tree
@@ -767,6 +996,9 @@ function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<
 
     const summary = document.createElement("summary");
     const icon = document.createElement("i");
+    summary.addEventListener("contextmenu", (event) => {
+      showExplorerContextMenu(event, entry, isRoot);
+    });
 
     icon.setAttribute(
       "data-lucide",
@@ -844,6 +1076,9 @@ function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<
   file.addEventListener("click", () => {
     void openFile(entry, file);
   });
+  file.addEventListener("contextmenu", (event) => {
+    showExplorerContextMenu(event, entry, false);
+  });
 
   const icon = document.createElement("i");
   icon.setAttribute("data-lucide", getFileIcon(entry.name));
@@ -893,24 +1128,35 @@ async function loadRepository(path: string) {
   const summary = document.querySelector<HTMLDivElement>("#repo-status-summary");
   summary?.replaceChildren();
   try {
-    const root = await invoke<TreeEntry>("get_repository_tree", { path });
+    const root = await invoke<TreeEntry>("get_repository_tree", { path: path, showHidden: showHiddenFiles });
 
-    await loadRepositorySummary(path);
+    const repositorySummary = await loadRepositorySummary(path);
     await loadCommitHistory(path);
     await loadLocalBranches(path);
     void loadRepositoryActivity(path); //Changed from await to void, large calculations can be time consuming
 
     const selectedPath = selectedFile?.path;
 
+    const expandedDirectories =
+      currentRepoPath === path
+        ? getExpandedDirectories()
+        : new Set<string>();
+
     repoName.textContent = root.name || "Repository";
     currentRepoPath = path;
+
+    if (repoBranch) {
+      repoBranch.textContent =
+        repositorySummary?.current_branch ?? "No branch";
+    }
 
     if (commitButton) {
       commitButton.disabled = true;
     }
 
-    const expandedDirectories =
-      currentRepoPath === path ? getExpandedDirectories() : new Set<string>();
+    if (hiddenFilesContainer) {
+      hiddenFilesContainer.hidden = false;
+    }
 
     treeContainer.replaceChildren(renderEntry(root, true, expandedDirectories));
 
@@ -1530,7 +1776,7 @@ function updateCommitGraph() {
   );
 }
 
-async function loadRepositorySummary(repoPath: string) {
+async function loadRepositorySummary(repoPath: string): Promise<RepositorySummary | null> {
   const commits = document.querySelector<HTMLElement>("#summary-commits");
   const branches = document.querySelector<HTMLElement>("#summary-branches");
   const contributors = document.querySelector<HTMLElement>("#summary-contributors");
@@ -1540,7 +1786,7 @@ async function loadRepositorySummary(repoPath: string) {
 
   if (!commits || !branches || !contributors ||
     !currentBranch || !changes || !latestCommit) {
-    return;
+    return null;
   }
 
   try {
@@ -1561,8 +1807,10 @@ async function loadRepositorySummary(repoPath: string) {
     if (summary.latest_commit) {
       latestCommit.title = summary.latest_commit;
     }
+    return summary;
   } catch (error) {
     console.error("Failed to load repository summary:", error);
+    return null;
   }
 }
 
@@ -2471,4 +2719,241 @@ function renderUnsupportedFile(filename: string, container: HTMLElement): void {
       height: 36
     }
   });
+}
+
+function showExplorerContextMenu(event: MouseEvent, entry: TreeEntry, isRoot: boolean): void {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (!explorerContextMenu) return;
+
+  contextMenuEntry = entry;
+  contextMenuIsRoot = isRoot;
+  explorerContextMenu.querySelectorAll<HTMLButtonElement>(
+    '[data-action="rename"], [data-action="move"], [data-action="delete"]'
+  )
+    .forEach(button => {
+      button.disabled = isRoot;
+    });
+
+  explorerContextMenu.hidden = false;
+
+  const rect = explorerContextMenu.getBoundingClientRect();
+
+  explorerContextMenu.style.left = `${Math.max(0, Math.min(event.clientX, window.innerWidth - rect.width))}px`;
+
+  explorerContextMenu.style.top = `${Math.max(0, Math.min(event.clientY, window.innerHeight - rect.height))}px`;
+}
+
+function hideExplorerContextMenu(): void {
+  if (!explorerContextMenu) return;
+
+  explorerContextMenu.hidden = true;
+  contextMenuEntry = null;
+  contextMenuIsRoot = false;
+}
+
+async function createExplorerEntry(
+  entry: TreeEntry,
+  isDirectory: boolean
+): Promise<void> {
+  if (!currentRepoPath) return;
+
+  if (isEditing && editedFileContent !== originalFileContent) {
+    alert("Please save or cancel your current edits before creating files.");
+    return;
+  }
+
+  const parentPath = entry.is_dir
+    ? entry.path
+    : entry.path.replace(/[\\/][^\\/]+$/, "");
+
+  const name = prompt(
+    isDirectory ? "New folder name:" : "New file name:"
+  );
+
+  if (name === null) return;
+
+  if (!name.trim()) {
+    alert("Please enter a valid name.");
+    return;
+  }
+
+  try {
+    await invoke("create_entry", {
+      repoPath: currentRepoPath,
+      parentPath,
+      name,
+      isDirectory,
+    });
+
+    await loadRepository(currentRepoPath);
+  } catch (error) {
+    alert(`Failed to create entry: ${error}`);
+  }
+}
+
+async function renameExplorerEntry(entry: TreeEntry): Promise<void> {
+  if (!currentRepoPath) return;
+
+  if (isEditing && editedFileContent !== originalFileContent) {
+    alert("Please save or cancel your current edits before renaming files.");
+    return;
+  }
+
+  const newName = prompt("Rename to:", entry.name);
+
+  if (newName === null || newName === entry.name) {
+    return;
+  }
+
+  if (!newName.trim()) {
+    alert("Please enter a valid name.");
+    return;
+  }
+
+  try {
+    await invoke("rename_entry", {
+      repoPath: currentRepoPath,
+      entryPath: entry.path,
+      newName,
+    });
+
+    await loadRepository(currentRepoPath);
+  } catch (error) {
+    alert(`Failed to rename entry: ${error}`);
+  }
+}
+
+async function deleteExplorerEntry(entry: TreeEntry): Promise<void> {
+  if (!currentRepoPath) return;
+
+  try {
+    await invoke("delete_entry", {
+      repoPath: currentRepoPath,
+      entryPath: entry.path,
+    });
+
+    if (
+      selectedFile &&
+      (
+        selectedFile.path === entry.path ||
+        (
+          entry.is_dir &&
+          selectedFile.path.startsWith(
+            entry.path.replace(/[\\/]$/, "") +
+            (entry.path.includes("\\") ? "\\" : "/")
+          )
+        )
+      )
+    ) {
+      selectedFile = null;
+    }
+    await loadRepository(currentRepoPath);
+  } catch (error) {
+    alert(`Failed to delete entry: ${error}`);
+  }
+}
+
+function showDeleteConfirmation(entry: TreeEntry): void {
+  if (!deleteEntryDialog || !deleteEntryMessage) return;
+
+  if (isEditing && editedFileContent !== originalFileContent) {
+    alert("Please save or cancel your edits before deleting files.");
+    return;
+  }
+
+  pendingDeleteEntry = entry;
+
+  if (entry.is_dir) {
+    deleteEntryMessage.textContent =
+      `Permanently delete the folder "${entry.name}"? ` +
+      `This will also delete ALL files and subfolders inside it, ` +
+      `including hidden, ignored, and untracked files.`;
+  } else {
+    deleteEntryMessage.textContent =
+      `Permanently delete the file "${entry.name}"?`;
+  }
+
+  deleteEntryDialog.showModal();
+}
+
+async function moveExplorerEntry(entry: TreeEntry): Promise<void> {
+  if (!currentRepoPath) return;
+
+  if (isEditing && editedFileContent !== originalFileContent) {
+    alert("Please save or cancel your edits before moving files.");
+    return;
+  }
+
+  const repoPath = currentRepoPath;
+
+  try {
+    const destination = await open({
+      directory: true,
+      multiple: false,
+      title: `Move "${entry.name}" to...`,
+      defaultPath: entry.path,
+    });
+
+    if (!destination) return;
+
+    await invoke("move_entry", {
+      repoPath,
+      entryPath: entry.path,
+      destinationPath: destination,
+    });
+
+    if (
+      selectedFile &&
+      (
+        selectedFile.path === entry.path ||
+        (
+          entry.is_dir &&
+          selectedFile.path.startsWith(
+            entry.path.replace(/[\\/]$/, "") +
+            (entry.path.includes("\\") ? "\\" : "/")
+          )
+        )
+      )
+    ) {
+      selectedFile = null;
+    }
+
+    await loadRepository(repoPath);
+  } catch (error) {
+    alert(`Failed to move entry: ${error}`);
+  }
+}
+
+function showInitializeRepositoryDialog(
+  path: string,
+  mode: RepositoryInitMode
+): void {
+  if (
+    !initRepositoryDialog ||
+    !initRepositoryDescription ||
+    !initRepositoryPath ||
+    !initRepositoryName ||
+    !initRepositoryNameContainer ||
+    !initRepositoryBranch
+  ) {
+    return;
+  }
+
+  repositoryInitMode = mode;
+
+  initRepositoryPath.value = path;
+  initRepositoryBranch.value = "main";
+  initRepositoryName.value = "";
+
+  const isNew = mode === "new";
+
+  initRepositoryNameContainer.hidden = !isNew;
+
+  initRepositoryDescription.textContent = isNew
+    ? "Create a new Git repository in a subfolder of the selected directory."
+    : "This folder is not a Git repository. Would you like to initialize it?";
+
+  initRepositoryDialog.showModal();
 }

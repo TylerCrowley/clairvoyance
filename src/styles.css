@@ -160,13 +160,126 @@ main {
   display: flex;
 }
 
+/* Repository toolbar */
+
 .repo-controls {
   display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.repo-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  width: 100%;
+  padding: 12px 16px;
+  box-sizing: border-box;
+}
+
+.repo-toolbar-primary,
+.repo-toolbar-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.repo-toolbar-button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+
+  min-width: 95px;
+  padding: 8px 12px;
+  margin: 0;
+
+  white-space: nowrap;
+}
+
+.repo-toolbar-button svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.repo-toolbar-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 500px) {
+  .repo-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .repo-toolbar-primary {
+    flex: 1;
+  }
+
+  .repo-toolbar-primary .repo-toolbar-button {
+    flex: 1;
+  }
+
+  .repo-toolbar-secondary {
+    width: 100%;
+  }
+
+  .repo-toolbar-secondary .repo-toolbar-button {
+    width: 100%;
+  }
+}
+
+/* Repository identity/status bar */
+
+.repository-identity {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
-  margin: auto;
+  min-width: 0;
+}
+
+.repository-identity-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--muted, #999);
+}
+
+.repository-identity-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.repository-identity-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+#repo-name {
+  font-weight: 600;
+}
+
+.repository-branch {
+  font-size: 0.75rem;
+  color: var(--muted, #aaa);
+  background: rgba(128, 128, 128, 0.15);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+#repo-path {
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .button {
@@ -1504,4 +1617,137 @@ main.workspace {
   height: 24px;
   flex-shrink: 0;
   color: var(--muted, #e6e8ef);
+}
+
+.hidden-files-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hidden-files-control[hidden] {
+  display: none;
+}
+
+.hidden-files-label {
+  font-size: 0.7rem;
+  color: var(--muted, #999);
+  white-space: nowrap;
+}
+
+.hidden-files-control .diff-toggle-container {
+  margin: 0;
+}
+
+.explorer-context-menu {
+  position: fixed;
+  z-index: 1000;
+
+  display: flex;
+  flex-direction: column;
+
+  min-width: 165px;
+  padding: 5px;
+
+  background: #252525;
+  border: 1px solid #444;
+  border-radius: 6px;
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.explorer-context-menu[hidden] {
+  display: none;
+}
+
+.explorer-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 8px 12px;
+  width: 100%;
+
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.explorer-context-menu button:hover {
+  background: #383838;
+}
+
+.explorer-context-menu svg {
+  width: 16px;
+  height: 16px;
+}
+
+.context-menu-separator {
+  width: 100%;
+  margin: 5px 0;
+  border: none;
+  border-top: 1px solid #444;
+}
+
+.explorer-context-menu button[hidden] {
+  display: none;
+}
+
+.explorer-context-menu button.danger {
+  color: #e57373;
+}
+
+.explorer-context-menu button.danger:hover {
+  background: rgba(229, 115, 115, 0.15);
+}
+
+.delete-warning {
+  padding: 12px;
+  border-left: 3px solid #e57373;
+  background: rgba(229, 115, 115, 0.08);
+  color: #e57373;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.button-danger {
+  background: #b93b3b;
+  color: white;
+}
+
+.button-danger:hover {
+  background: #d14b4b;
+}
+
+.explorer-context-menu button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.explorer-context-menu button:disabled:hover {
+  background: transparent;
+}
+
+#init-repository-dialog input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px;
+  margin: 6px 0 16px;
+}
+
+#init-repository-path {
+  opacity: 0.7;
+}
+
+#init-repository-name-container[hidden] {
+  display: none;
+}
+
+#init-repository-name::placeholder {
+  opacity: 0.3;
 }
