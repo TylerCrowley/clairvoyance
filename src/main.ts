@@ -182,6 +182,7 @@ let editedFileContent = "";
 let currentImageURL: string | null = null;
 let showingMarkdownSource = false;
 let showHiddenFiles = false;
+let isUnsupportedFile = false;
 let contextMenuEntry: TreeEntry | null = null;
 let contextMenuIsRoot = false;
 let pendingDeleteEntry: TreeEntry | null = null;
@@ -747,7 +748,7 @@ function updateEditingButtons() {
     return;
   }
 
-  editFileButton.hidden = !selectedFile || isImageFile(selectedFile.name) || isPDFFile(selectedFile.name) || isDOCXFile(selectedFile.name) || isEditing || showingDiff;
+  editFileButton.hidden = !selectedFile || isUnsupportedFile || isImageFile(selectedFile.name) || isPDFFile(selectedFile.name) || isDOCXFile(selectedFile.name) || isEditing || showingDiff;
 
   cancelEditButton.hidden = !isEditing;
   saveFileButton.hidden = !isEditing;
@@ -1334,6 +1335,8 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
     if (!confirmed) return;
   }
 
+  isUnsupportedFile = false;
+
   if (currentImageURL) {
     URL.revokeObjectURL(currentImageURL);
     currentImageURL = null;
@@ -1426,6 +1429,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
       });
     } catch (error) {
       if (String(error).includes("UNSUPPORTED_BINARY_FILE")) {
+        isUnsupportedFile = true;
         renderUnsupportedFile(entry.name, fileContent);
 
         isEditing = false;
