@@ -26,6 +26,16 @@ import {
   Trash2,
   RefreshCw,
   GitBranch,
+  BookOpen,
+  X,
+  Terminal,
+  ListTree,
+  FolderGit2,
+  FileDiff,
+  GitCommitHorizontal,
+  Globe,
+  FilePenLine,
+  Layers,
 } from "lucide";
 import Chart from "chart.js/auto";
 import { marked } from "marked";
@@ -34,6 +44,7 @@ import { renderAsync } from "docx-preview";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerURL from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerURL;
+import { gitExplanations, gitGuideCategories } from "./gitGuide";
 
 interface GitFileStatus {
   staged: string | null;
@@ -166,6 +177,10 @@ const initRepositoryBranch = document.querySelector<HTMLInputElement>("#init-rep
 const cancelInitButton = document.querySelector<HTMLButtonElement>("#cancel-init-button");
 const confirmInitButton = document.querySelector<HTMLButtonElement>("#confirm-init-button");
 const createRepositoryButton = document.querySelector<HTMLButtonElement>("#create-repository-button");
+const gitGuideButton = document.querySelector<HTMLButtonElement>("#git-guide-button");
+const gitGuidePanel = document.querySelector<HTMLElement>("#git-guide-panel");
+const gitGuideClose = document.querySelector<HTMLButtonElement>("#git-guide-close");
+const repositoryIdentity = document.querySelector<HTMLElement>(".repository-identity");
 
 let mergeCurrentBranch = "";
 let selectedFile: TreeEntry | null = null;
@@ -187,6 +202,9 @@ let contextMenuEntry: TreeEntry | null = null;
 let contextMenuIsRoot = false;
 let pendingDeleteEntry: TreeEntry | null = null;
 let repositoryInitMode: RepositoryInitMode = "new";
+let currentGuideTree: TreeEntry | null = null;
+let currentGuideSummary: RepositorySummary | null = null;
+let currentGuideTopic: keyof typeof gitExplanations = "welcome";
 type RepositoryInitMode = "new" | "existing";
 type WorkspaceView = "file" | "overview";
 
@@ -201,6 +219,32 @@ const graphColors = [
 
 function getGraphColor(lane: number): string {
   return graphColors[lane % graphColors.length];
+}
+
+if (repositoryIdentity) {
+  createIcons({
+    icons: { GitBranch },
+    root: repositoryIdentity,
+  });
+}
+
+if (gitGuideButton) {
+  createIcons({
+    icons: { BookOpen },
+    root: gitGuideButton,
+  });
+}
+
+if (gitGuidePanel) {
+  createIcons({
+    icons: {
+      BookOpen,
+      X,
+      ListTree,
+      Terminal
+    },
+    root: gitGuidePanel
+  });
 }
 
 // The button to open the system dialog and select a folder
@@ -704,6 +748,25 @@ createRepositoryButton?.addEventListener("click", async () => {
   showInitializeRepositoryDialog(parentPath, "new");
 });
 
+gitGuideButton?.addEventListener("click", () => {
+  if (!gitGuidePanel) return;
+
+  gitGuidePanel.hidden = !gitGuidePanel.hidden;
+});
+
+gitGuideClose?.addEventListener("click", () => {
+  if (gitGuidePanel) {
+    gitGuidePanel.hidden = true;
+  }
+});
+
+renderGitGuideTopics();
+showGitExplanation("welcome");
+
+if (gitGuidePanel) {
+  gitGuidePanel.hidden = false;
+}
+
 // Adds status totals to directories, makes it much easier to navigate
 function countChangedFiles(entry: TreeEntry): number {
   if (!entry.is_dir) {
@@ -981,9 +1044,25 @@ function renderRepositoryToolbarIcons(): void {
 
   if (repositoryIdentity) {
     createIcons({
-      icons: { GitBranch },
+      icons: {
+        GitBranch,
+      },
       root: repositoryIdentity,
     });
+
+    const guidePanel =
+      document.querySelector<HTMLElement>("#git-guide-panel");
+
+    if (guidePanel) {
+      createIcons({
+        icons: {
+          BookOpen,
+          X,
+          Terminal,
+        },
+        root: guidePanel,
+      });
+    }
   }
 }
 
@@ -1137,6 +1216,10 @@ async function loadRepository(path: string) {
     void loadRepositoryActivity(path); //Changed from await to void, large calculations can be time consuming
 
     const selectedPath = selectedFile?.path;
+
+    currentGuideTree = root;
+    currentGuideSummary = repositorySummary;
+    renderGitGuideVisual(gitExplanations[currentGuideTopic].visual);
 
     const expandedDirectories =
       currentRepoPath === path
@@ -2960,4 +3043,267 @@ function showInitializeRepositoryDialog(
     : "This folder is not a Git repository. Would you like to initialize it?";
 
   initRepositoryDialog.showModal();
+}
+
+function showGitExplanation(
+  topic: keyof typeof gitExplanations
+): void {
+  const explanation = gitExplanations[topic];
+
+  currentGuideTopic = topic;
+
+  const title = document.querySelector<HTMLElement>("#git-guide-title");
+  const summary = document.querySelector<HTMLElement>("#git-guide-summary");
+  const details = document.querySelector<HTMLElement>("#git-guide-details");
+  const command = document.querySelector<HTMLElement>("#git-guide-command");
+  const commandContainer = document.querySelector<HTMLElement>(
+    "#git-guide-command-container"
+  );
+
+  if (!title || !summary || !details || !command || !commandContainer) return;
+
+  title.textContent = explanation.title;
+  summary.textContent = explanation.summary;
+  details.textContent = explanation.details;
+
+  command.textContent = explanation.command ?? "";
+  commandContainer.hidden = !explanation.command;
+
+  renderGitGuideVisual(explanation.visual);
+
+  document.querySelectorAll<HTMLButtonElement>(".git-guide-topic")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.topic === topic
+      );
+    });
+}
+
+function renderGitGuideTopics(): void {
+  const container = document.querySelector<HTMLElement>(
+    "#git-guide-topics"
+  );
+
+  if (!container) return;
+
+  container.replaceChildren();
+
+  for (const category of gitGuideCategories) {
+    const details = document.createElement("details");
+    details.className = "git-guide-category";
+
+    const summary = document.createElement("summary");
+
+    const categoryIcon = document.createElement("i");
+    categoryIcon.setAttribute("data-lucide", category.icon);
+    categoryIcon.className = "git-guide-icon";
+
+    const categoryLabel = document.createElement("span");
+    categoryLabel.textContent = category.title;
+
+    summary.append(categoryIcon, categoryLabel);
+
+    const topicList = document.createElement("div");
+    topicList.className = "git-guide-category-topics";
+
+    for (const topic of category.topics) {
+      const explanation = gitExplanations[topic];
+
+      const topicRow = document.createElement("button");
+      topicRow.type = "button";
+      topicRow.className = "git-guide-topic";
+      topicRow.dataset.topic = topic;
+
+      const topicIcon = document.createElement("i");
+      topicIcon.setAttribute("data-lucide", "file-text");
+      topicIcon.className = "git-guide-icon";
+
+      const topicLabel = document.createElement("span");
+      topicLabel.textContent = explanation.title;
+
+      topicRow.append(topicIcon, topicLabel);
+
+      topicRow.addEventListener("click", () => {
+        showGitExplanation(topic);
+      });
+
+      topicList.appendChild(topicRow);
+    }
+
+    details.append(summary, topicList);
+    container.appendChild(details);
+  }
+
+  createIcons({
+    icons: {
+      FolderGit2,
+      FileDiff,
+      GitCommitHorizontal,
+      GitBranch,
+      Globe,
+      FileText,
+    },
+    root: container,
+  });
+}
+
+function getGitAreaCounts(): {working: number; staged: number; commits: number | null;} {
+  const counts = {
+    working: 0,
+    staged: 0,
+    commits: currentGuideSummary?.total_commits ?? null,
+  };
+
+  if (!currentGuideTree) {
+    return counts;
+  }
+
+  function visit(entry: TreeEntry): void {
+    if (entry.status?.unstaged) {
+      counts.working += 1;
+    }
+
+    if (entry.status?.staged) {
+      counts.staged += 1;
+    }
+
+    for (const child of entry.children) {
+      visit(child);
+    }
+  }
+
+  visit(currentGuideTree);
+  return counts;
+}
+
+function createGitAreaCard(title: string, description: string, countText: string | null, iconName: string, active = false): HTMLElement {
+  const card = document.createElement("div");
+  card.className = "git-area-card";
+
+  if (active) {
+    card.classList.add("active");
+  }
+
+  const header = document.createElement("div");
+  header.className = "git-area-header";
+
+  const titleGroup = document.createElement("div");
+  titleGroup.className = "git-area-title-group";
+
+  const icon = document.createElement("i");
+  icon.setAttribute("data-lucide", iconName);
+  icon.className = "git-area-icon";
+
+  const titleElement = document.createElement("span");
+  titleElement.className = "git-area-title";
+  titleElement.textContent = title;
+
+  titleGroup.append(icon, titleElement);
+  header.appendChild(titleGroup);
+
+  if (countText) {
+    const badge = document.createElement("span");
+    badge.className = "git-area-count";
+    badge.textContent = countText;
+    header.appendChild(badge);
+  }
+
+  const descriptionElement = document.createElement("p");
+  descriptionElement.className = "git-area-description";
+  descriptionElement.textContent = description;
+
+  card.append(header, descriptionElement);
+
+  return card;
+}
+
+function createGitAreaArrow(label: string, active = false, reverse = false): HTMLElement {
+  const arrow = document.createElement("div");
+  arrow.className = "git-area-arrow";
+  arrow.textContent = label;
+
+  if (active) {
+    arrow.classList.add("active");
+  }
+
+  if (reverse) {
+    arrow.classList.add("reverse");
+  }
+
+  return arrow;
+}
+
+function renderGitGuideVisual(visual: import("./gitGuide").GitGuideVisual | undefined): void {
+  const container = document.querySelector<HTMLElement>(
+    "#git-guide-visual-container"
+  );
+
+  if (!container) return;
+
+  container.replaceChildren();
+
+  if (!visual) {
+    container.hidden = true;
+    return;
+  }
+
+  const counts = getGitAreaCounts();
+  const visualElement = document.createElement("div");
+  visualElement.className = "git-areas-visual";
+
+  const workingCard = createGitAreaCard(
+    "Working Directory",
+    "Files you are currently editing.",
+    currentGuideTree ? `${counts.working} changed` : null,
+    "file-pen-line",
+    visual === "working-directory"
+  );
+
+  const firstArrow = createGitAreaArrow(
+    visual === "unstaging" ? "git restore --staged" : "git add",
+    visual === "staging-area" || visual === "unstaging",
+    visual === "unstaging"
+  );
+
+  const stagingCard = createGitAreaCard(
+    "Staging Area",
+    "The snapshot prepared for your next commit.",
+    currentGuideTree ? `${counts.staged} staged` : null,
+    "layers",
+    visual === "staging-area" || visual === "unstaging"
+  );
+
+  const secondArrow = createGitAreaArrow(
+    "git commit",
+    visual === "committing"
+  );
+
+  const repositoryCard = createGitAreaCard(
+    "Repository",
+    "Your saved project history.",
+    counts.commits !== null ? `${counts.commits} commits` : null,
+    "git-commit-horizontal",
+    visual === "committing"
+  );
+
+  visualElement.append(
+    workingCard,
+    firstArrow,
+    stagingCard,
+    secondArrow,
+    repositoryCard
+  );
+
+  container.appendChild(visualElement);
+  container.hidden = false;
+
+  createIcons({
+    icons: {
+      FilePenLine,
+      Layers,
+      GitCommitHorizontal,
+    },
+    root: container,
+  });
 }

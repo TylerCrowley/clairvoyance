@@ -33,6 +33,10 @@
                 <div class="repository-identity-heading">
                     <span id="repo-name"></span>
                     <span id="repo-branch" class="repository-branch"></span>
+                    <button id="git-guide-button" class="button">
+                        <i data-lucide="book-open"></i>
+                        Git Guide
+                    </button>
                 </div>
                 <span id="repo-path" class="muted"></span>
             </div>
@@ -46,7 +50,7 @@
     </section>
     <div class="workspace-body">
         <aside class="panel explorer-panel">
-            <div class="explorer-panel-heading">
+            <div class="explorer-panel-heading sidebar-heading">
                 <h3>Explorer</h3>
                 <div id="hidden-files-container" class="hidden-files-control" hidden>
                     <span class="hidden-files-label">Show Hidden Files</span>
@@ -244,6 +248,43 @@
                 </div>
             </div>
         </section>
+        <aside id="git-guide-panel" class="panel git-guide-panel" hidden>
+            <div class="git-guide-header sidebar-heading">
+                <div class="git-guide-heading">
+                    <i data-lucide="book-open"></i>
+                    <span>Git Guide</span>
+                </div>
+                <button id="git-guide-close" class="button git-guide-close" title="Close Git Guide"
+                    aria-label="Close Git Guide">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="git-guide-content">
+                <details id="git-guide-browser" class="git-guide-browser">
+                    <summary>
+                        <i data-lucide="list-tree"></i>
+                        <span>Browse Topics</span>
+                    </summary>
+                    <nav id="git-guide-topics" class="git-guide-topics" aria-label="Git Guide topics">
+                    </nav>
+                </details>
+                <section class="git-guide-explanation">
+                    <h3 id="git-guide-title">Welcome to Git</h3>
+                    <p id="git-guide-summary" class="git-guide-summary"></p>
+                    <div class="git-guide-divider"></div>
+                    <p id="git-guide-details"></p>
+                    <div id="git-guide-visual-container" class="git-guide-visual-container" hidden>
+                    </div>
+                    <div id="git-guide-command-container" class="git-guide-command" hidden>
+                        <div class="git-guide-command-heading">
+                            <i data-lucide="terminal"></i>
+                            <span>Equivalent Git Command</span>
+                        </div>
+                        <pre><code id="git-guide-command"></code></pre>
+                    </div>
+                </section>
+            </div>
+        </aside>
     </div>
     <dialog id="commit-dialog" class="app-dialog">
         <div class="app-dialog-content">
