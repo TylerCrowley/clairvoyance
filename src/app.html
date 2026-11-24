@@ -1,428 +1,451 @@
 <header class="topbar">
-    <div>
-        <p class="eyebrow">CLAIRVOYANCE</p>
-        <h1>Repository Explorer</h1>
+  <div>
+    <p class="eyebrow">CLAIRVOYANCE</p>
+    <h1>Repository Explorer</h1>
+  </div>
+  <div class="repo-controls">
+    <div class="repo-toolbar">
+      <div class="repo-toolbar-primary">
+        <button id="select-repo" class="button repo-toolbar-button">
+          <i data-lucide="folder-open"></i>
+          <span>Open</span>
+        </button>
+        <button
+          id="create-repository-button"
+          class="button repo-toolbar-button"
+        >
+          <i data-lucide="folder-plus"></i>
+          <span>Create</span>
+        </button>
+      </div>
+      <div class="repo-toolbar-secondary">
+        <button id="refresh-repo" class="button repo-toolbar-button" disabled>
+          <i data-lucide="refresh-cw"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
     </div>
-    <div class="repo-controls">
-        <div class="repo-toolbar">
-            <div class="repo-toolbar-primary">
-                <button id="select-repo" class="button repo-toolbar-button">
-                    <i data-lucide="folder-open"></i>
-                    <span>Open</span>
-                </button>
-                <button id="create-repository-button" class="button repo-toolbar-button">
-                    <i data-lucide="folder-plus"></i>
-                    <span>Create</span>
-                </button>
-            </div>
-            <div class="repo-toolbar-secondary">
-                <button id="refresh-repo" class="button repo-toolbar-button" disabled>
-                    <i data-lucide="refresh-cw"></i>
-                    <span>Refresh</span>
-                </button>
-            </div>
-        </div>
-    </div>
-    <span id="status" class="status">No repository selected</span>
+  </div>
+  <span id="status" class="status">No repository selected</span>
 </header>
 <main class="workspace">
-    <section class="panel workspace-header">
-        <div class="repository-identity">
-            <i data-lucide="git-branch" class="repository-identity-icon"></i>
-            <div class="repository-identity-details">
-                <div class="repository-identity-heading">
-                    <span id="repo-name"></span>
-                    <span id="repo-branch" class="repository-branch"></span>
-                    <button id="git-guide-button" class="button">
-                        <i data-lucide="book-open"></i>
-                        Git Guide
-                    </button>
-                </div>
-                <span id="repo-path" class="muted"></span>
-            </div>
+  <section class="panel workspace-header">
+    <div class="repository-identity">
+      <i data-lucide="git-branch" class="repository-identity-icon"></i>
+      <div class="repository-identity-details">
+        <div class="repository-identity-heading">
+          <span id="repo-name"></span>
+          <span id="repo-branch" class="repository-branch"></span>
+          <button id="git-guide-button" class="button">
+            <i data-lucide="book-open"></i>
+            Git Guide
+          </button>
         </div>
-        <div class="repository-actions">
-            <div id="repo-status-summary"></div>
-            <button id="commit-button" class="button" disabled>
-                Commit
-            </button>
+        <span id="repo-path" class="muted"></span>
+      </div>
+    </div>
+    <div class="repository-actions">
+      <div id="repo-status-summary"></div>
+      <button id="commit-button" class="button" disabled>Commit</button>
+    </div>
+  </section>
+  <div class="workspace-body">
+    <aside class="panel explorer-panel">
+      <div class="explorer-panel-heading sidebar-heading">
+        <h3>Explorer</h3>
+        <div id="hidden-files-container" class="hidden-files-control" hidden>
+          <span class="hidden-files-label">Show Hidden Files</span>
+          <label class="diff-toggle-container">
+            <input id="hidden-files-toggle" type="checkbox" />
+            <span class="diff-toggle-slider"></span>
+          </label>
         </div>
-    </section>
-    <div class="workspace-body">
-        <aside class="panel explorer-panel">
-            <div class="explorer-panel-heading sidebar-heading">
-                <h3>Explorer</h3>
-                <div id="hidden-files-container" class="hidden-files-control" hidden>
-                    <span class="hidden-files-label">Show Hidden Files</span>
-                    <label class="diff-toggle-container">
-                        <input id="hidden-files-toggle" type="checkbox">
-                        <span class="diff-toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
-            <div id="tree" class="tree">
-                <p class="muted">
-                    Open a repository to explore its files.
-                </p>
-            </div>
-            <button id="overview-button" class="button" disabled>
-                <i data-lucide="chart-no-axes-combined"></i>
-                Repository Overview
+      </div>
+      <div id="tree" class="tree">
+        <p class="muted">Open a repository to explore its files.</p>
+      </div>
+      <button id="overview-button" class="button" disabled>
+        <i data-lucide="chart-no-axes-combined"></i>
+        Repository Overview
+      </button>
+    </aside>
+    <section class="panel content-panel">
+      <div id="file-view">
+        <div class="panel-heading">
+          <div>
+            <h2 id="file-name">No file selected</h2>
+            <p id="file-path" class="muted"></p>
+          </div>
+          <div class="file-actions">
+            <label
+              id="diff-toggle-container"
+              class="diff-toggle-container"
+              hidden
+            >
+              <span>Show Changes</span>
+              <input id="diff-toggle" type="checkbox" />
+              <span class="diff-toggle-slider"></span>
+            </label>
+            <label
+              id="markdown-toggle-container"
+              class="diff-toggle-container"
+              hidden
+            >
+              <span>Show Source</span>
+              <input id="markdown-toggle" type="checkbox" />
+              <span class="diff-toggle-slider"></span>
+            </label>
+            <button id="edit-file-button" class="button" hidden>Edit</button>
+            <button id="cancel-edit-button" class="button" hidden>
+              Cancel
             </button>
-        </aside>
-        <section class="panel content-panel">
-            <div id="file-view">
-                <div class="panel-heading">
-                    <div>
-                        <h2 id="file-name">No file selected</h2>
-                        <p id="file-path" class="muted"></p>
-                    </div>
-                    <div class="file-actions">
-                        <label id="diff-toggle-container" class="diff-toggle-container" hidden>
-                            <span>Show Changes</span>
-                            <input id="diff-toggle" type="checkbox">
-                            <span class="diff-toggle-slider"></span>
-                        </label>
-                        <label id="markdown-toggle-container" class="diff-toggle-container" hidden>
-                            <span>Show Source</span>
-                            <input id="markdown-toggle" type="checkbox">
-                            <span class="diff-toggle-slider"></span>
-                        </label>
-                        <button id="edit-file-button" class="button" hidden>
-                            Edit
-                        </button>
-                        <button id="cancel-edit-button" class="button" hidden>
-                            Cancel
-                        </button>
-                        <button id="save-file-button" class="button" hidden disabled>
-                            Save
-                        </button>
-                        <button id="stage-button" class="button" hidden>
-                            Stage File
-                        </button>
-                    </div>
-                </div>
-                <div id="file-content" class="file-content">
-                    <p class="muted" id="no-file">
-                        Select a file from the explorer to view its contents.
-                    </p>
-                </div>
-            </div>
-            <div id="repository-overview" hidden>
-                <div class="panel-heading">
-                    <h2>Repository Overview</h2>
-                </div>
-                <div class="overview-content">
-                    <details id="repository-summary" class="overview-section" open>
-                        <summary>
-                            <h3>Repository Summary</h3>
-                        </summary>
-                        <div class="summary-grid">
-                            <div class="summary-stat">
-                                <span class="summary-value" id="summary-commits">—</span>
-                                <span class="muted">Commits</span>
-                            </div>
+            <button id="save-file-button" class="button" hidden disabled>
+              Save
+            </button>
+            <button id="stage-button" class="button" hidden>Stage File</button>
+          </div>
+        </div>
+        <div id="file-content" class="file-content">
+          <p class="muted" id="no-file">
+            Select a file from the explorer to view its contents.
+          </p>
+        </div>
+      </div>
+      <div id="repository-overview" hidden>
+        <div class="panel-heading">
+          <h2>Repository Overview</h2>
+        </div>
+        <div class="overview-content">
+          <details id="repository-summary" class="overview-section" open>
+            <summary>
+              <h3>Repository Summary</h3>
+            </summary>
+            <div class="summary-grid">
+              <div class="summary-stat">
+                <span class="summary-value" id="summary-commits">—</span>
+                <span class="muted">Commits</span>
+              </div>
 
-                            <div class="summary-stat">
-                                <span class="summary-value" id="summary-branches">—</span>
-                                <span class="muted">Branches</span>
-                            </div>
-                            <div class="summary-stat">
-                                <span class="summary-value" id="summary-contributors">—</span>
-                                <span class="muted">Contributors</span>
-                            </div>
-                        </div>
-                        <div class="summary-details">
-                            <div>
-                                <span class="muted">Current Branch</span>
-                                <span id="summary-current-branch">—</span>
-                            </div>
-                            <div>
-                                <span class="muted">Working Tree</span>
-                                <span id="summary-changes">—</span>
-                            </div>
-                            <div>
-                                <span class="muted">Latest Commit</span>
-                                <span id="summary-latest-commit">—</span>
-                            </div>
-                        </div>
-                    </details>
-                    <details id="commit-history" class="overview-section" open>
-                        <summary>
-                            <h3>Commit History</h3>
-                        </summary>
-                        <div class="table-container">
-                            <table class="commit-table">
-                                <thead>
-                                    <tr>
-                                        <th>Graph</th>
-                                        <th>Message</th>
-                                        <th>Hash</th>
-                                        <th>Author</th>
-                                        <th>Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="commit-history-body"></tbody>
-                            </table>
-                        </div>
-                        <div id="commit-details" class="commit-details" hidden>
-                            <div class="commit-details-header">
-                                <h3>Commit Details</h3>
-                            </div>
-                            <div class="commit-details-content">
-                                <div>
-                                    <span class="muted">Message</span>
-                                    <p id="detail-message"></p>
-                                </div>
-                                <div>
-                                    <span class="muted">Hash</span>
-                                    <code id="detail-hash"></code>
-                                </div>
-                                <div>
-                                    <span class="muted">Author</span>
-                                    <span id="detail-author"></span>
-                                </div>
-                                <div>
-                                    <span class="muted">Date</span>
-                                    <span id="detail-date"></span>
-                                </div>
-                                <div>
-                                    <span class="muted">Parents</span>
-                                    <div id="detail-parents"></div>
-                                </div>
-                                <div class="commit-changes">
-                                    <h4>Changed Files</h4>
-                                    <div id="commit-changes-list">
-                                        <p>Select a commit to view its changes.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-                    <details id="repository-branches" class="overview-section" open>
-                        <summary>
-                            <div class="branch-section-header">
-                                <h3>Local Branches</h3>
-                                <div class="branch-actions">
-                                    <button id="create-branch-button" class="button" type="button">
-                                        + New Branch
-                                    </button>
-                                    <button id="open-merge-dialog" class="button" type="button">
-                                        Merge Branches
-                                    </button>
-                                </div>
-                            </div>
-                        </summary>
-                        <div id="branch-list" class="branch-list"></div>
-                    </details>
-                    <details id="repository-activity" class="overview-section" open>
-                        <summary>
-                            <h3>Repository Activity</h3>
-                        </summary>
-                        <div class="activity-content">
-                            <div class="activity-stats">
-                                <div class="activity-stat">
-                                    <strong id="activity-total-commits">0</strong>
-                                    <span>Commits</span>
-                                </div>
-                                <div class="activity-stat">
-                                    <strong id="activity-active-days">0</strong>
-                                    <span>Active Days</span>
-                                </div>
-                                <div class="activity-stat">
-                                    <strong id="activity-contributors">0</strong>
-                                    <span>Contributors</span>
-                                </div>
-                            </div>
-                            <h4>Commits Over Time</h4>
-                            <p class="activity-description">
-                                Commits per week over the last 12 weeks.
-                            </p>
-                            <div class="activity-chart-container">
-                                <canvas id="activity-chart"></canvas>
-                            </div>
-                            <h4>Contributor Activity</h4>
-                            <div id="activity-contributors-list"></div>
-                        </div>
-                    </details>
-                </div>
+              <div class="summary-stat">
+                <span class="summary-value" id="summary-branches">—</span>
+                <span class="muted">Branches</span>
+              </div>
+              <div class="summary-stat">
+                <span class="summary-value" id="summary-contributors">—</span>
+                <span class="muted">Contributors</span>
+              </div>
             </div>
+            <div class="summary-details">
+              <div>
+                <span class="muted">Current Branch</span>
+                <span id="summary-current-branch">—</span>
+              </div>
+              <div>
+                <span class="muted">Working Tree</span>
+                <span id="summary-changes">—</span>
+              </div>
+              <div>
+                <span class="muted">Latest Commit</span>
+                <span id="summary-latest-commit">—</span>
+              </div>
+            </div>
+          </details>
+          <details id="commit-history" class="overview-section" open>
+            <summary>
+              <h3>Commit History</h3>
+            </summary>
+            <div class="table-container">
+              <table class="commit-table">
+                <thead>
+                  <tr>
+                    <th>Graph</th>
+                    <th>Message</th>
+                    <th>Hash</th>
+                    <th>Author</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody id="commit-history-body"></tbody>
+              </table>
+            </div>
+            <div id="commit-details" class="commit-details" hidden>
+              <div class="commit-details-header">
+                <h3>Commit Details</h3>
+              </div>
+              <div class="commit-details-content">
+                <div>
+                  <span class="muted">Message</span>
+                  <p id="detail-message"></p>
+                </div>
+                <div>
+                  <span class="muted">Hash</span>
+                  <code id="detail-hash"></code>
+                </div>
+                <div>
+                  <span class="muted">Author</span>
+                  <span id="detail-author"></span>
+                </div>
+                <div>
+                  <span class="muted">Date</span>
+                  <span id="detail-date"></span>
+                </div>
+                <div>
+                  <span class="muted">Parents</span>
+                  <div id="detail-parents"></div>
+                </div>
+                <div class="commit-changes">
+                  <h4>Changed Files</h4>
+                  <div id="commit-changes-list">
+                    <p>Select a commit to view its changes.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+          <details id="repository-branches" class="overview-section" open>
+            <summary>
+              <div class="branch-section-header">
+                <h3>Local Branches</h3>
+                <div class="branch-actions">
+                  <button
+                    id="create-branch-button"
+                    class="button"
+                    type="button"
+                  >
+                    + New Branch
+                  </button>
+                  <button id="open-merge-dialog" class="button" type="button">
+                    Merge Branches
+                  </button>
+                </div>
+              </div>
+            </summary>
+            <div id="branch-list" class="branch-list"></div>
+          </details>
+          <details id="repository-activity" class="overview-section" open>
+            <summary>
+              <h3>Repository Activity</h3>
+            </summary>
+            <div class="activity-content">
+              <div class="activity-stats">
+                <div class="activity-stat">
+                  <strong id="activity-total-commits">0</strong>
+                  <span>Commits</span>
+                </div>
+                <div class="activity-stat">
+                  <strong id="activity-active-days">0</strong>
+                  <span>Active Days</span>
+                </div>
+                <div class="activity-stat">
+                  <strong id="activity-contributors">0</strong>
+                  <span>Contributors</span>
+                </div>
+              </div>
+              <h4>Commits Over Time</h4>
+              <p class="activity-description">
+                Commits per week over the last 12 weeks.
+              </p>
+              <div class="activity-chart-container">
+                <canvas id="activity-chart"></canvas>
+              </div>
+              <h4>Contributor Activity</h4>
+              <div id="activity-contributors-list"></div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+    <aside id="git-guide-panel" class="panel git-guide-panel" hidden>
+      <div class="git-guide-header sidebar-heading">
+        <div class="git-guide-heading">
+          <i data-lucide="book-open"></i>
+          <span>Git Guide</span>
+        </div>
+        <button
+          id="git-guide-close"
+          class="button git-guide-close"
+          title="Close Git Guide"
+          aria-label="Close Git Guide"
+        >
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="git-guide-content">
+        <details id="git-guide-browser" class="git-guide-browser">
+          <summary>
+            <i data-lucide="list-tree"></i>
+            <span>Browse Topics</span>
+          </summary>
+          <nav
+            id="git-guide-topics"
+            class="git-guide-topics"
+            aria-label="Git Guide topics"
+          ></nav>
+        </details>
+        <section class="git-guide-explanation">
+          <h3 id="git-guide-title">Welcome to Git</h3>
+          <p id="git-guide-summary" class="git-guide-summary"></p>
+          <div class="git-guide-divider"></div>
+          <p id="git-guide-details"></p>
+          <div
+            id="git-guide-visual-container"
+            class="git-guide-visual-container"
+            hidden
+          ></div>
+          <div
+            id="git-guide-command-container"
+            class="git-guide-command"
+            hidden
+          >
+            <div class="git-guide-command-heading">
+              <i data-lucide="terminal"></i>
+              <span>Equivalent Git Command</span>
+            </div>
+            <pre><code id="git-guide-command"></code></pre>
+          </div>
         </section>
-        <aside id="git-guide-panel" class="panel git-guide-panel" hidden>
-            <div class="git-guide-header sidebar-heading">
-                <div class="git-guide-heading">
-                    <i data-lucide="book-open"></i>
-                    <span>Git Guide</span>
-                </div>
-                <button id="git-guide-close" class="button git-guide-close" title="Close Git Guide"
-                    aria-label="Close Git Guide">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-            <div class="git-guide-content">
-                <details id="git-guide-browser" class="git-guide-browser">
-                    <summary>
-                        <i data-lucide="list-tree"></i>
-                        <span>Browse Topics</span>
-                    </summary>
-                    <nav id="git-guide-topics" class="git-guide-topics" aria-label="Git Guide topics">
-                    </nav>
-                </details>
-                <section class="git-guide-explanation">
-                    <h3 id="git-guide-title">Welcome to Git</h3>
-                    <p id="git-guide-summary" class="git-guide-summary"></p>
-                    <div class="git-guide-divider"></div>
-                    <p id="git-guide-details"></p>
-                    <div id="git-guide-visual-container" class="git-guide-visual-container" hidden>
-                    </div>
-                    <div id="git-guide-command-container" class="git-guide-command" hidden>
-                        <div class="git-guide-command-heading">
-                            <i data-lucide="terminal"></i>
-                            <span>Equivalent Git Command</span>
-                        </div>
-                        <pre><code id="git-guide-command"></code></pre>
-                    </div>
-                </section>
-            </div>
-        </aside>
+      </div>
+    </aside>
+  </div>
+  <dialog id="commit-dialog" class="app-dialog">
+    <div class="app-dialog-content">
+      <h2>Commit Changes</h2>
+      <p class="muted">
+        Enter a commit message and choose which changes to commit.
+      </p>
+      <label for="commit-message">Commit message</label>
+      <textarea
+        id="commit-message"
+        rows="4"
+        placeholder="Describe your changes..."
+      ></textarea>
+      <div class="app-dialog-actions">
+        <button id="cancel-commit" class="button" type="button">Cancel</button>
+        <button id="commit-staged" class="button" type="button" disabled>
+          Commit Staged
+        </button>
+        <button id="commit-all" class="button" type="button" disabled>
+          Stage All &amp; Commit
+        </button>
+      </div>
     </div>
-    <dialog id="commit-dialog" class="app-dialog">
-        <div class="app-dialog-content">
-            <h2>Commit Changes</h2>
-            <p class="muted">
-                Enter a commit message and choose which changes to commit.
-            </p>
-            <label for="commit-message">Commit message</label>
-            <textarea id="commit-message" rows="4" placeholder="Describe your changes..."></textarea>
-            <div class="app-dialog-actions">
-                <button id="cancel-commit" class="button" type="button">
-                    Cancel
-                </button>
-                <button id="commit-staged" class="button" type="button" disabled>
-                    Commit Staged
-                </button>
-                <button id="commit-all" class="button" type="button" disabled>
-                    Stage All &amp; Commit
-                </button>
-            </div>
+  </dialog>
+  <dialog id="create-branch-dialog" class="app-dialog">
+    <div class="app-dialog-content">
+      <h3>Create Branch</h3>
+      <p>Create a new branch from the currently checked-out commit.</p>
+      <form id="create-branch-form">
+        <label for="new-branch-name">Branch name</label>
+        <input
+          id="new-branch-name"
+          type="text"
+          required
+          placeholder="feature/my-new-branch"
+        />
+        <div class="app-dialog-actions">
+          <button id="cancel-create-branch" class="button" type="button">
+            Cancel
+          </button>
+          <button class="button" type="submit">Create Branch</button>
         </div>
-    </dialog>
-    <dialog id="create-branch-dialog" class="app-dialog">
-        <div class="app-dialog-content">
-            <h3>Create Branch</h3>
-            <p>Create a new branch from the currently checked-out commit.</p>
-            <form id="create-branch-form">
-                <label for="new-branch-name">Branch name</label>
-                <input id="new-branch-name" type="text" required placeholder="feature/my-new-branch" />
-                <div class="app-dialog-actions">
-                    <button id="cancel-create-branch" class="button" type="button">
-                        Cancel
-                    </button>
-                    <button class="button" type="submit">
-                        Create Branch
-                    </button>
-                </div>
-            </form>
-        </div>
-    </dialog>
-    <dialog id="merge-branches-dialog" class="app-dialog">
-        <div class="app-dialog-content">
-            <form id="merge-branches-form">
-                <fieldset>
-                    <legend>Merge direction</legend>
-                    <label>
-                        <input type="radio" name="merge-direction" value="into-current" checked />
-                        Merge another branch into my current branch
-                    </label>
-                    <label>
-                        <input type="radio" name="merge-direction" value="into-other" />
-                        Merge my current branch into another branch
-                    </label>
-                </fieldset>
-                <label for="merge-other-branch">
-                    Other local branch
-                </label>
-                <select id="merge-other-branch" required></select>
-                <div class="merge-preview">
-                    <strong id="merge-preview-title"></strong>
-                    <p id="merge-preview-description"></p>
-                </div>
-                <div class="app-dialog-actions">
-                    <button id="cancel-merge" class="button" type="button">
-                        Cancel
-                    </button>
-                    <button id="confirm-merge" class="button" type="submit">
-                        Merge
-                    </button>
-                </div>
-            </form>
-        </div>
-    </dialog>
-    <dialog id="delete-entry-dialog" class="app-dialog">
-        <div class="app-dialog-content">
-            <h2>Confirm Deletion</h2>
-            <p id="delete-entry-message"></p>
-            <p class="delete-warning">
-                This action is permanent. Uncommitted changes and untracked files
-                may not be recoverable through Git.
-            </p>
-            <div class="dialog-actions">
-                <button id="cancel-delete-button" class="button">
-                    Cancel
-                </button>
-                <button id="confirm-delete-button" class="button button-danger">
-                    Delete
-                </button>
-            </div>
-        </div>
-    </dialog>
-    <dialog id="init-repository-dialog" class="app-dialog">
-        <div class="app-dialog-content">
-            <h2>Initialize Repository</h2>
-            <p id="init-repository-description"></p>
-            <label for="init-repository-path">Location</label>
-            <input id="init-repository-path" type="text" readonly>
-            <div id="init-repository-name-container">
-                <label for="init-repository-name">Repository Name</label>
-                <input id="init-repository-name" type="text" placeholder="my-project">
-            </div>
-            <label for="init-repository-branch">Initial Branch</label>
-            <input id="init-repository-branch" type="text" value="main" required>
-            <p class="muted">
-                Initializes a local Git repository without creating an initial commit.
-            </p>
-            <div class="dialog-actions">
-                <button id="cancel-init-button" class="button" type="button">
-                    Cancel
-                </button>
-                <button id="confirm-init-button" class="button" type="button">
-                    Initialize Repository
-                </button>
-            </div>
-        </div>
-    </dialog>
-    <div id="explorer-context-menu" class="explorer-context-menu" hidden>
-        <button type="button" data-action="new-file">
-            <i data-lucide="file-plus"></i>
-            New File
-        </button>
-        <button type="button" data-action="new-folder">
-            <i data-lucide="folder-plus"></i>
-            New Folder
-        </button>
-        <hr class="context-menu-separator">
-        <button type="button" data-action="rename">
-            <i data-lucide="pencil"></i>
-            Rename
-        </button>
-        <button type="button" data-action="move">
-            <i data-lucide="folder-input"></i>
-            Move
-        </button>
-        <hr class="context-menu-separator">
-        <button type="button" data-action="delete" class="danger">
-            <i data-lucide="trash-2"></i>
-            Delete
-        </button>
+      </form>
     </div>
+  </dialog>
+  <dialog id="merge-branches-dialog" class="app-dialog">
+    <div class="app-dialog-content">
+      <form id="merge-branches-form">
+        <fieldset>
+          <legend>Merge direction</legend>
+          <label>
+            <input
+              type="radio"
+              name="merge-direction"
+              value="into-current"
+              checked
+            />
+            Merge another branch into my current branch
+          </label>
+          <label>
+            <input type="radio" name="merge-direction" value="into-other" />
+            Merge my current branch into another branch
+          </label>
+        </fieldset>
+        <label for="merge-other-branch"> Other local branch </label>
+        <select id="merge-other-branch" required></select>
+        <div class="merge-preview">
+          <strong id="merge-preview-title"></strong>
+          <p id="merge-preview-description"></p>
+        </div>
+        <div class="app-dialog-actions">
+          <button id="cancel-merge" class="button" type="button">Cancel</button>
+          <button id="confirm-merge" class="button" type="submit">Merge</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+  <dialog id="delete-entry-dialog" class="app-dialog">
+    <div class="app-dialog-content">
+      <h2>Confirm Deletion</h2>
+      <p id="delete-entry-message"></p>
+      <p class="delete-warning">
+        This action is permanent. Uncommitted changes and untracked files may
+        not be recoverable through Git.
+      </p>
+      <div class="dialog-actions">
+        <button id="cancel-delete-button" class="button">Cancel</button>
+        <button id="confirm-delete-button" class="button button-danger">
+          Delete
+        </button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="init-repository-dialog" class="app-dialog">
+    <div class="app-dialog-content">
+      <h2>Initialize Repository</h2>
+      <p id="init-repository-description"></p>
+      <label for="init-repository-path">Location</label>
+      <input id="init-repository-path" type="text" readonly />
+      <div id="init-repository-name-container">
+        <label for="init-repository-name">Repository Name</label>
+        <input id="init-repository-name" type="text" placeholder="my-project" />
+      </div>
+      <label for="init-repository-branch">Initial Branch</label>
+      <input id="init-repository-branch" type="text" value="main" required />
+      <p class="muted">
+        Initializes a local Git repository without creating an initial commit.
+      </p>
+      <div class="dialog-actions">
+        <button id="cancel-init-button" class="button" type="button">
+          Cancel
+        </button>
+        <button id="confirm-init-button" class="button" type="button">
+          Initialize Repository
+        </button>
+      </div>
+    </div>
+  </dialog>
+  <div id="explorer-context-menu" class="explorer-context-menu" hidden>
+    <button type="button" data-action="new-file">
+      <i data-lucide="file-plus"></i>
+      New File
+    </button>
+    <button type="button" data-action="new-folder">
+      <i data-lucide="folder-plus"></i>
+      New Folder
+    </button>
+    <hr class="context-menu-separator" />
+    <button type="button" data-action="rename">
+      <i data-lucide="pencil"></i>
+      Rename
+    </button>
+    <button type="button" data-action="move">
+      <i data-lucide="folder-input"></i>
+      Move
+    </button>
+    <hr class="context-menu-separator" />
+    <button type="button" data-action="delete" class="danger">
+      <i data-lucide="trash-2"></i>
+      Delete
+    </button>
+  </div>
 </main>

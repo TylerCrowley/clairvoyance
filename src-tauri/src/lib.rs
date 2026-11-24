@@ -1,12 +1,26 @@
 // Rust libraries
 use git2::{
-    build::CheckoutBuilder, BranchType, DiffFormat, DiffOptions, Repository, RepositoryState, Sort,
-    Status, StatusOptions,
+    build::CheckoutBuilder,
+    BranchType,
+    DiffFormat,
+    DiffOptions,
+    Repository,
+    RepositoryState,
+    Sort,
+    Status,
+    StatusOptions,
+    ErrorCode,
+    IndexAddOption,
+    Oid,
+    Patch,
+    ReferenceType,
+    Branch,
+    RepositoryInitOptions,
 };
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::{ HashMap, HashSet };
 use std::fs;
-use std::path::Path;
+use std::path::{ Path, PathBuf };
 
 #[derive(Serialize, Clone)]
 // Moved Git status into it's own data type
@@ -80,7 +94,7 @@ fn build_tree(
     path: &Path,
     repo_root: &Path,
     statuses: &HashMap<String, GitFileStatus>,
-    show_hidden: bool,
+    show_hidden: bool
 ) -> TreeEntry {
     let mut entries = Vec::new();
 
@@ -132,11 +146,7 @@ fn build_tree(
         let metadata = match fs::symlink_metadata(&entry_path) {
             Ok(metadata) => metadata,
             Err(error) => {
-                eprintln!(
-                    "Could not read metadata for {}: {}",
-                    entry_path.display(),
-                    error
-                );
+                eprintln!("Could not read metadata for {}: {}", entry_path.display(), error);
                 continue;
             }
         };
@@ -163,9 +173,7 @@ fn build_tree(
     }
 
     entries.sort_by(|a, b| {
-        b.is_dir
-            .cmp(&a.is_dir)
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        b.is_dir.cmp(&a.is_dir).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
 
     TreeEntry {
@@ -180,12 +188,11 @@ fn build_tree(
 
 #[tauri::command]
 fn get_repository_tree(path: String, show_hidden: bool) -> Result<TreeEntry, String> {
-    let repo = Repository::open(&path)
-        .map_err(|_| "The selected folder is not a valid Git repository.".to_string())?;
+    let repo = Repository::open(&path).map_err(|_|
+        "The selected folder is not a valid Git repository.".to_string()
+    )?;
 
-    let root = repo
-        .workdir()
-        .ok_or_else(|| "Empty repositories are not supported.".to_string())?;
+    let root = repo.workdir().ok_or_else(|| "Empty repositories are not supported.".to_string())?;
 
     let statuses = get_repository_statuses(&repo)?;
 
@@ -202,9 +209,7 @@ fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, GitFileS
         .include_ignored(false)
         .include_unmodified(false);
 
-    let statuses = repo
-        .statuses(Some(&mut options))
-        .map_err(|error| error.to_string())?;
+    let statuses = repo.statuses(Some(&mut options)).map_err(|error| error.to_string())?;
 
     let mut result = HashMap::new();
 
@@ -253,9 +258,9 @@ fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, GitFileS
 #[tauri::command]
 // Reads the file content
 fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
-    let repo_root = std::fs::canonicalize(&repo_path).map_err(|error| error.to_string())?;
+    let repo_root = fs::canonicalize(&repo_path).map_err(|error| error.to_string())?;
 
-    let file = std::fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
+    let file = fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
 
     if !file.starts_with(&repo_root) {
         return Err("File is outside the selected repository.".to_string());
@@ -265,7 +270,7 @@ fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
         return Err("Selected path is not a file.".to_string());
     }
 
-    let metadata = std::fs::metadata(&file).map_err(|error| error.to_string())?;
+    let metadata = fs::metadata(&file).map_err(|error| error.to_string())?;
 
     if metadata.len() > 2 * 1024 * 1024 {
         return Err("File is too large to display (2 MB limit).".to_string());
@@ -293,13 +298,9 @@ fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
 
     let mut index = repo.index().map_err(|error| error.to_string())?;
 
-    index
-        .add_path(relative_path)
-        .map_err(|error| format!("Could not stage file: {}", error))?;
+    index.add_path(relative_path).map_err(|error| format!("Could not stage file: {}", error))?;
 
-    index
-        .write()
-        .map_err(|error| format!("Could not save Git index: {}", error))?;
+    index.write().map_err(|error| format!("Could not save Git index: {}", error))?;
 
     Ok(())
 }
@@ -309,13 +310,11 @@ fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
 fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let repo_root = repo
-        .workdir()
-        .ok_or("Cannot unstage files in a bare repository.")?;
+    let repo_root = repo.workdir().ok_or("Cannot unstage files in a bare repository.")?;
 
-    let repo_root = std::fs::canonicalize(repo_root).map_err(|error| error.to_string())?;
+    let repo_root = fs::canonicalize(repo_root).map_err(|error| error.to_string())?;
 
-    let file = std::fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
+    let file = fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
 
     let relative_path = file
         .strip_prefix(&repo_root)
@@ -331,18 +330,16 @@ fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
 
             Some(commit.into_object())
         }
-        Err(error)
-            if matches!(
-                error.code(),
-                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
-            ) =>
-        {
+        Err(error) if matches!(error.code(), ErrorCode::UnbornBranch | ErrorCode::NotFound) => {
             None
         }
-        Err(error) => return Err(error.to_string()),
+        Err(error) => {
+            return Err(error.to_string());
+        }
     };
 
-    repo.reset_default(head.as_ref(), [relative_path])
+    repo
+        .reset_default(head.as_ref(), [relative_path])
         .map_err(|error| format!("Could not unstage file: {}", error))?;
 
     Ok(())
@@ -356,22 +353,16 @@ fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Resul
     let mut index = repo.index().map_err(|error| error.to_string())?;
 
     if commit_all {
-        index
-            .add_all(["*"], git2::IndexAddOption::DEFAULT, None)
-            .map_err(|error| error.to_string())?;
+        index.add_all(["*"], IndexAddOption::DEFAULT, None).map_err(|error| error.to_string())?;
 
-        index
-            .update_all(["*"], None)
-            .map_err(|error| error.to_string())?;
+        index.update_all(["*"], None).map_err(|error| error.to_string())?;
 
         index.write().map_err(|error| error.to_string())?;
     }
 
     let tree_oid = index.write_tree().map_err(|error| error.to_string())?;
 
-    let tree = repo
-        .find_tree(tree_oid)
-        .map_err(|error| error.to_string())?;
+    let tree = repo.find_tree(tree_oid).map_err(|error| error.to_string())?;
 
     let signature = repo.signature().map_err(|error| error.to_string())?;
 
@@ -382,14 +373,7 @@ fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Resul
         .map_err(|error| error.to_string())?;
 
     let commit_oid = repo
-        .commit(
-            Some("HEAD"),
-            &signature,
-            &signature,
-            &message,
-            &tree,
-            &[&parent],
-        )
+        .commit(Some("HEAD"), &signature, &signature, &message, &tree, &[&parent])
         .map_err(|error| error.to_string())?;
     Ok(commit_oid.to_string())
 }
@@ -399,13 +383,11 @@ fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Resul
 fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLine>, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let repo_root = repo
-        .workdir()
-        .ok_or("Repository has no working directory.")?;
+    let repo_root = repo.workdir().ok_or("Repository has no working directory.")?;
 
-    let repo_root = std::fs::canonicalize(repo_root).map_err(|error| error.to_string())?;
+    let repo_root = fs::canonicalize(repo_root).map_err(|error| error.to_string())?;
 
-    let file = std::fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
+    let file = fs::canonicalize(&file_path).map_err(|error| error.to_string())?;
 
     let relative_path = file
         .strip_prefix(&repo_root)
@@ -417,15 +399,12 @@ fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLin
 
     let head_tree = match repo.head() {
         Ok(head) => Some(head.peel_to_tree().map_err(|error| error.to_string())?),
-        Err(error)
-            if matches!(
-                error.code(),
-                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
-            ) =>
-        {
+        Err(error) if matches!(error.code(), ErrorCode::UnbornBranch | ErrorCode::NotFound) => {
             None
         }
-        Err(error) => return Err(error.to_string()),
+        Err(error) => {
+            return Err(error.to_string());
+        }
     };
 
     let mut options = DiffOptions::new();
@@ -442,28 +421,31 @@ fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLin
 
     let mut lines = Vec::new();
 
-    diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
-        let line_type = match line.origin() {
-            '+' => "added",
-            '-' => "removed",
-            ' ' => "context",
-            _ => return true,
-        };
+    diff
+        .print(DiffFormat::Patch, |_delta, _hunk, line| {
+            let line_type = match line.origin() {
+                '+' => "added",
+                '-' => "removed",
+                ' ' => "context",
+                _ => {
+                    return true;
+                }
+            };
 
-        let content = String::from_utf8_lossy(line.content())
-            .trim_end_matches(['\r', '\n'])
-            .to_string();
+            let content = String::from_utf8_lossy(line.content())
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
 
-        lines.push(FileDiffLine {
-            old_line_number: line.old_lineno(),
-            new_line_number: line.new_lineno(),
-            line_type: line_type.to_string(),
-            content,
-        });
+            lines.push(FileDiffLine {
+                old_line_number: line.old_lineno(),
+                new_line_number: line.new_lineno(),
+                line_type: line_type.to_string(),
+                content,
+            });
 
-        true
-    })
-    .map_err(|error| error.to_string())?;
+            true
+        })
+        .map_err(|error| error.to_string())?;
 
     Ok(lines)
 }
@@ -473,15 +455,9 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
     let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
-    revwalk
-        .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
-        .map_err(|error| error.to_string())?;
-    revwalk
-        .push_glob("refs/heads/*")
-        .map_err(|error| error.to_string())?;
-    revwalk
-        .push_glob("refs/remotes/*")
-        .map_err(|error| error.to_string())?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME).map_err(|error| error.to_string())?;
+    revwalk.push_glob("refs/heads/*").map_err(|error| error.to_string())?;
+    revwalk.push_glob("refs/remotes/*").map_err(|error| error.to_string())?;
 
     let mut commits = Vec::new();
     for oid_result in revwalk.take(50) {
@@ -497,7 +473,10 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
                 .to_string(),
             author: commit.author().name().unwrap_or("Unknown").to_string(),
             timestamp: commit.time().seconds(),
-            parents: commit.parent_ids().map(|id| id.to_string()).collect(),
+            parents: commit
+                .parent_ids()
+                .map(|id| id.to_string())
+                .collect(),
         };
 
         commits.push(info);
@@ -512,33 +491,32 @@ fn get_repository_summary(repo_path: String) -> Result<RepositorySummary, String
 
     let head_commit = match repo.head() {
         Ok(head) => Some(head.peel_to_commit().map_err(|error| error.to_string())?),
-        Err(error)
-            if matches!(
-                error.code(),
-                git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
-            ) =>
-        {
+        Err(error) if matches!(error.code(), ErrorCode::UnbornBranch | ErrorCode::NotFound) => {
             None
         }
-        Err(error) => return Err(error.to_string()),
+        Err(error) => {
+            return Err(error.to_string());
+        }
     };
 
     let current_branch = match repo.head() {
-        Ok(head) if head.is_branch() => Some(
-            head.shorthand()
-                .map_err(|error| error.to_string())?
-                .to_string(),
-        ),
+        Ok(head) if head.is_branch() =>
+            Some(
+                head
+                    .shorthand()
+                    .map_err(|error| error.to_string())?
+                    .to_string()
+            ),
         Ok(_) => None, // Detached HEAD
-        Err(error) if error.code() == git2::ErrorCode::UnbornBranch => None,
-        Err(error) => return Err(error.to_string()),
+        Err(error) if error.code() == ErrorCode::UnbornBranch => None,
+        Err(error) => {
+            return Err(error.to_string());
+        }
     };
 
     let statuses = get_repository_statuses(&repo)?;
 
-    let branches = repo
-        .branches(Some(git2::BranchType::Local))
-        .map_err(|error| error.to_string())?;
+    let branches = repo.branches(Some(BranchType::Local)).map_err(|error| error.to_string())?;
     let branch_count = branches
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?
@@ -550,9 +528,7 @@ fn get_repository_summary(repo_path: String) -> Result<RepositorySummary, String
     let mut contributors = HashSet::new();
     if let Some(ref commit) = head_commit {
         let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
-        revwalk
-            .push(commit.id())
-            .map_err(|error| error.to_string())?;
+        revwalk.push(commit.id()).map_err(|error| error.to_string())?;
 
         for oid_result in revwalk {
             let oid = oid_result.map_err(|error| error.to_string())?;
@@ -572,8 +548,10 @@ fn get_repository_summary(repo_path: String) -> Result<RepositorySummary, String
 
             Some(commit.id().to_string())
         }
-        Err(error) if error.code() == git2::ErrorCode::UnbornBranch => None,
-        Err(error) => return Err(error.to_string()),
+        Err(error) if error.code() == ErrorCode::UnbornBranch => None,
+        Err(error) => {
+            return Err(error.to_string());
+        }
     };
 
     let summary = RepositorySummary {
@@ -594,9 +572,7 @@ fn get_local_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
 
     let mut branches = Vec::new();
 
-    let iterator = repo
-        .branches(Some(BranchType::Local))
-        .map_err(|error| error.to_string())?;
+    let iterator = repo.branches(Some(BranchType::Local)).map_err(|error| error.to_string())?;
 
     for branch_result in iterator {
         let (branch, _) = branch_result.map_err(|error| error.to_string())?;
@@ -609,7 +585,10 @@ fn get_local_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
 
         let is_current = branch.is_head();
 
-        let commit_hash = branch.get().target().map(|oid| oid.to_string());
+        let commit_hash = branch
+            .get()
+            .target()
+            .map(|oid| oid.to_string());
 
         branches.push(BranchInfo {
             name,
@@ -624,11 +603,11 @@ fn get_local_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
 #[tauri::command]
 fn get_commit_file_changes(
     repo_path: String,
-    commit_hash: String,
+    commit_hash: String
 ) -> Result<Vec<CommitFileChange>, String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let oid = git2::Oid::from_str(&commit_hash).map_err(|error| error.to_string())?;
+    let oid = Oid::from_str(&commit_hash).map_err(|error| error.to_string())?;
 
     let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
 
@@ -640,7 +619,7 @@ fn get_commit_file_changes(
                 .parent(0)
                 .map_err(|error| error.to_string())?
                 .tree()
-                .map_err(|error| error.to_string())?,
+                .map_err(|error| error.to_string())?
         )
     } else {
         None
@@ -664,7 +643,7 @@ fn get_commit_file_changes(
 
         let status = format!("{:?}", delta.status());
 
-        let patch = git2::Patch::from_diff(&diff, index).map_err(|error| error.to_string())?;
+        let patch = Patch::from_diff(&diff, index).map_err(|error| error.to_string())?;
 
         let (additions, deletions) = match patch {
             Some(patch) => {
@@ -700,22 +679,18 @@ fn switch_branch(repo_path: String, branch_name: String) -> Result<(), String> {
 
     if repo.state() != RepositoryState::Clean {
         return Err(
-            "A Git operation is in progress. Finish or abort it before switching branches."
-                .to_string(),
+            "A Git operation is in progress. Finish or abort it before switching branches.".to_string()
         );
     }
 
     let mut options = StatusOptions::new();
     options.include_untracked(true).recurse_untracked_dirs(true);
 
-    let statuses = repo
-        .statuses(Some(&mut options))
-        .map_err(|error| error.to_string())?;
+    let statuses = repo.statuses(Some(&mut options)).map_err(|error| error.to_string())?;
 
     if !statuses.is_empty() {
         return Err(
-            "Uncommitted changes detected. Commit, stash, or discard your changes before switching branches."
-                .to_string()
+            "Uncommitted changes detected. Commit, stash, or discard your changes before switching branches.".to_string()
         );
     }
 
@@ -730,34 +705,33 @@ fn switch_branch(repo_path: String, branch_name: String) -> Result<(), String> {
         .peel_to_commit()
         .map_err(|error| error.to_string())?;
 
-    let object = repo
-        .find_object(commit.id(), None)
-        .map_err(|error| error.to_string())?;
+    let object = repo.find_object(commit.id(), None).map_err(|error| error.to_string())?;
 
     let mut checkout = CheckoutBuilder::new();
     checkout.safe();
 
-    repo.checkout_tree(&object, Some(&mut checkout))
+    repo
+        .checkout_tree(&object, Some(&mut checkout))
         .map_err(|error| format!("Branch checkout failed: {error}"))?;
 
-    repo.set_head(&reference_name)
-        .map_err(|error| error.to_string())?;
+    repo.set_head(&reference_name).map_err(|error| error.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
 fn get_repository_activity(repo_path: String) -> Result<Vec<ActivityCommit>, String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
     let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
 
-    let now = std::time::SystemTime::now()
+    let now = std::time::SystemTime
+        ::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|error| error.to_string())?
         .as_secs() as i64;
 
-    let cutoff = now - (91 * 24 * 60 * 60);
+    let cutoff = now - 91 * 24 * 60 * 60;
 
     let references = repo.references().map_err(|error| error.to_string())?;
 
@@ -770,17 +744,13 @@ fn get_repository_activity(repo_path: String) -> Result<Vec<ActivityCommit>, Str
             continue;
         }
 
-        if reference.kind() == Some(git2::ReferenceType::Symbolic) {
+        if reference.kind() == Some(ReferenceType::Symbolic) {
             continue;
         }
 
-        let commit = reference
-            .peel_to_commit()
-            .map_err(|error| error.to_string())?;
+        let commit = reference.peel_to_commit().map_err(|error| error.to_string())?;
 
-        revwalk
-            .push(commit.id())
-            .map_err(|error| error.to_string())?;
+        revwalk.push(commit.id()).map_err(|error| error.to_string())?;
     }
 
     let mut activity = Vec::new();
@@ -806,13 +776,13 @@ fn get_repository_activity(repo_path: String) -> Result<Vec<ActivityCommit>, Str
 
 #[tauri::command]
 fn create_branch(repo_path: String, branch_name: String) -> Result<(), String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
     let name = branch_name.trim();
 
     if name.is_empty() {
         return Err("Branch name cannot be empty.".to_string());
     }
-    if repo.state() != git2::RepositoryState::Clean {
+    if repo.state() != RepositoryState::Clean {
         return Err("Finish the current Git operation before creating a branch.".to_string());
     }
 
@@ -821,8 +791,7 @@ fn create_branch(repo_path: String, branch_name: String) -> Result<(), String> {
     let commit = head.peel_to_commit().map_err(|error| error.to_string())?;
 
     // false prevents overwriting an existing branch.
-    repo.branch(name, &commit, false)
-        .map_err(|error| error.to_string())?;
+    repo.branch(name, &commit, false).map_err(|error| error.to_string())?;
 
     Ok(())
 }
@@ -831,7 +800,7 @@ fn create_branch(repo_path: String, branch_name: String) -> Result<(), String> {
 fn merge_branches(
     repo_path: String,
     source_branch: String,
-    target_branch: String,
+    target_branch: String
 ) -> Result<String, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
@@ -847,17 +816,13 @@ fn merge_branches(
 
     let mut status_options = StatusOptions::new();
 
-    status_options
-        .include_untracked(true)
-        .recurse_untracked_dirs(true);
+    status_options.include_untracked(true).recurse_untracked_dirs(true);
 
-    let statuses = repo
-        .statuses(Some(&mut status_options))
-        .map_err(|error| error.to_string())?;
+    let statuses = repo.statuses(Some(&mut status_options)).map_err(|error| error.to_string())?;
 
     if !statuses.is_empty() {
         return Err(
-            "Uncommitted changes detected. Commit or stash them before merging.".to_string(),
+            "Uncommitted changes detected. Commit or stash them before merging.".to_string()
         );
     }
 
@@ -879,8 +844,9 @@ fn merge_branches(
         .peel_to_commit()
         .map_err(|error| error.to_string())?;
 
-    let up_to_date = source_commit.id() == target_commit.id()
-        || repo
+    let up_to_date =
+        source_commit.id() == target_commit.id() ||
+        repo
             .graph_descendant_of(target_commit.id(), source_commit.id())
             .map_err(|error| error.to_string())?;
 
@@ -898,41 +864,39 @@ fn merge_branches(
             .map_err(|error| error.to_string())?;
 
         if preview.has_conflicts() {
-            return Err(format!(
-                "Cannot automatically merge {source_branch} into \
+            return Err(
+                format!(
+                    "Cannot automatically merge {source_branch} into \
                  {target_branch}: merge conflicts were detected. \
                  No branches were changed."
-            ));
+                )
+            );
         }
     }
 
     if !target.is_head() {
-        let object = repo
-            .find_object(target_commit.id(), None)
-            .map_err(|error| error.to_string())?;
+        let object = repo.find_object(target_commit.id(), None).map_err(|error| error.to_string())?;
 
         let mut checkout = CheckoutBuilder::new();
         checkout.safe();
 
-        repo.checkout_tree(&object, Some(&mut checkout))
+        repo.checkout_tree(&object, Some(&mut checkout)).map_err(|error| error.to_string())?;
+
+        let reference_name = target
+            .get()
+            .name()
             .map_err(|error| error.to_string())?;
 
-        let reference_name = target.get().name().map_err(|error| error.to_string())?;
-
-        repo.set_head(reference_name)
-            .map_err(|error| error.to_string())?;
+        repo.set_head(reference_name).map_err(|error| error.to_string())?;
     }
 
     if fast_forward {
-        let object = repo
-            .find_object(source_commit.id(), None)
-            .map_err(|error| error.to_string())?;
+        let object = repo.find_object(source_commit.id(), None).map_err(|error| error.to_string())?;
 
         let mut checkout = CheckoutBuilder::new();
         checkout.safe();
 
-        repo.checkout_tree(&object, Some(&mut checkout))
-            .map_err(|error| error.to_string())?;
+        repo.checkout_tree(&object, Some(&mut checkout)).map_err(|error| error.to_string())?;
 
         let mut target_ref = repo
             .find_reference(&format!("refs/heads/{target_branch}"))
@@ -942,9 +906,7 @@ fn merge_branches(
             .set_target(source_commit.id(), "Fast-forward merge")
             .map_err(|error| error.to_string())?;
 
-        return Ok(format!(
-            "Fast-forwarded {target_branch} to {source_branch}."
-        ));
+        return Ok(format!("Fast-forwarded {target_branch} to {source_branch}."));
     }
 
     let annotated = repo
@@ -954,51 +916,46 @@ fn merge_branches(
     let mut checkout = CheckoutBuilder::new();
     checkout.safe();
 
-    repo.merge(&[&annotated], None, Some(&mut checkout))
-        .map_err(|error| error.to_string())?;
+    repo.merge(&[&annotated], None, Some(&mut checkout)).map_err(|error| error.to_string())?;
 
     let mut index = repo.index().map_err(|error| error.to_string())?;
 
     if index.has_conflicts() {
-        return Err("The merge produced conflicts. Resolve or abort \
-             the in-progress merge before continuing."
-            .to_string());
+        return Err(
+            "The merge produced conflicts. Resolve or abort \
+             the in-progress merge before continuing.".to_string()
+        );
     }
 
     let tree_oid = index.write_tree().map_err(|error| error.to_string())?;
 
-    let tree = repo
-        .find_tree(tree_oid)
-        .map_err(|error| error.to_string())?;
+    let tree = repo.find_tree(tree_oid).map_err(|error| error.to_string())?;
 
     let signature = repo.signature().map_err(|error| error.to_string())?;
 
     let message = format!("Merge branch '{source_branch}' into {target_branch}");
 
-    repo.commit(
-        Some("HEAD"),
-        &signature,
-        &signature,
-        &message,
-        &tree,
-        &[&target_commit, &source_commit],
-    )
-    .map_err(|error| error.to_string())?;
+    repo
+        .commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            &message,
+            &tree,
+            &[&target_commit, &source_commit]
+        )
+        .map_err(|error| error.to_string())?;
 
     repo.cleanup_state().map_err(|error| error.to_string())?;
 
-    Ok(format!(
-        "Successfully merged {source_branch} into {target_branch}."
-    ))
+    Ok(format!("Successfully merged {source_branch} into {target_branch}."))
 }
 
 #[tauri::command]
 fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(), String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo
-        .workdir()
-        .ok_or("Cannot edit files in a bare repository.")?;
+    let workdir = repo.workdir().ok_or("Cannot edit files in a bare repository.")?;
 
     let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
@@ -1010,9 +967,7 @@ fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(
         repo_root.join(supplied_path)
     };
 
-    let resolved = target
-        .canonicalize()
-        .map_err(|error| format!("Invalid file path: {error}"))?;
+    let resolved = target.canonicalize().map_err(|error| format!("Invalid file path: {error}"))?;
 
     if !resolved.starts_with(&repo_root) {
         return Err("Cannot save files outside the selected repository.".to_string());
@@ -1029,11 +984,9 @@ fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(
 
 #[tauri::command]
 fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo
-        .workdir()
-        .ok_or("Cannot read files in a bare repository.")?;
+    let workdir = repo.workdir().ok_or("Cannot read files in a bare repository.")?;
 
     let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
@@ -1076,11 +1029,9 @@ fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
 
 #[tauri::command]
 fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo
-        .workdir()
-        .ok_or("Cannot read files in a bare repository.")?;
+    let workdir = repo.workdir().ok_or("Cannot read files in a bare repository.")?;
 
     let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
@@ -1112,13 +1063,13 @@ fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String
         return Err("Unsupported document format.".to_string());
     }
 
-    let metadata = std::fs::metadata(&resolved).map_err(|error| error.to_string())?;
+    let metadata = fs::metadata(&resolved).map_err(|error| error.to_string())?;
 
     if metadata.len() > 20 * 1024 * 1024 {
         return Err("Document exceeds the 20 MiB limit.".to_string());
     }
 
-    std::fs::read(&resolved).map_err(|error| format!("Failed to read document: {error}"))
+    fs::read(&resolved).map_err(|error| format!("Failed to read document: {error}"))
 }
 
 #[tauri::command]
@@ -1126,24 +1077,23 @@ fn create_entry(
     repo_path: String,
     parent_path: String,
     name: String,
-    is_directory: bool,
+    is_directory: bool
 ) -> Result<(), String> {
-    if name.is_empty()
-        || name == "."
-        || name == ".."
-        || name.contains('/')
-        || name.contains('\\')
-        || name.contains('\0')
-        || name.eq_ignore_ascii_case(".git")
+    if
+        name.is_empty() ||
+        name == "." ||
+        name == ".." ||
+        name.contains('/') ||
+        name.contains('\\') ||
+        name.contains('\0') ||
+        name.eq_ignore_ascii_case(".git")
     {
         return Err("Invalid file or folder name.".to_string());
     }
 
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo
-        .workdir()
-        .ok_or("Cannot create files in a bare repository.")?;
+    let workdir = repo.workdir().ok_or("Cannot create files in a bare repository.")?;
 
     let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
@@ -1169,22 +1119,23 @@ fn create_entry(
         .strip_prefix(&repo_root)
         .map_err(|error| error.to_string())?;
 
-    if relative_parent.components().any(|component| {
-        component
-            .as_os_str()
-            .to_string_lossy()
-            .eq_ignore_ascii_case(".git")
-    }) {
+    if
+        relative_parent
+            .components()
+            .any(|component| {
+                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+            })
+    {
         return Err("Cannot modify Git metadata.".into());
     }
 
     let target = resolved_parent.join(&name);
 
     if is_directory {
-        std::fs::create_dir(&target)
-            .map_err(|error| format!("Failed to create folder: {error}"))?;
+        fs::create_dir(&target).map_err(|error| format!("Failed to create folder: {error}"))?;
     } else {
-        fs::OpenOptions::new()
+        fs::OpenOptions
+            ::new()
             .write(true)
             .create_new(true)
             .open(&target)
@@ -1195,22 +1146,21 @@ fn create_entry(
 
 #[tauri::command]
 fn rename_entry(repo_path: String, entry_path: String, new_name: String) -> Result<(), String> {
-    if new_name.is_empty()
-        || new_name == "."
-        || new_name == ".."
-        || new_name.contains('/')
-        || new_name.contains('\\')
-        || new_name.contains('\0')
-        || new_name.eq_ignore_ascii_case(".git")
+    if
+        new_name.is_empty() ||
+        new_name == "." ||
+        new_name == ".." ||
+        new_name.contains('/') ||
+        new_name.contains('\\') ||
+        new_name.contains('\0') ||
+        new_name.eq_ignore_ascii_case(".git")
     {
         return Err("Invalid file or folder name.".into());
     }
 
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo
-        .workdir()
-        .ok_or("Cannot rename entries in a bare repository.")?;
+    let workdir = repo.workdir().ok_or("Cannot rename entries in a bare repository.")?;
 
     let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
@@ -1234,22 +1184,19 @@ fn rename_entry(repo_path: String, entry_path: String, new_name: String) -> Resu
         return Err("Cannot rename this path.".into());
     }
 
-    let relative_path = resolved
-        .strip_prefix(&repo_root)
-        .map_err(|error| error.to_string())?;
+    let relative_path = resolved.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
 
-    if relative_path.components().any(|component| {
-        component
-            .as_os_str()
-            .to_string_lossy()
-            .eq_ignore_ascii_case(".git")
-    }) {
+    if
+        relative_path
+            .components()
+            .any(|component| {
+                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+            })
+    {
         return Err("Cannot modify Git metadata.".into());
     }
 
-    let parent = resolved
-        .parent()
-        .ok_or("Could not determine the parent directory.")?;
+    let parent = resolved.parent().ok_or("Could not determine the parent directory.")?;
 
     let destination = parent.join(&new_name);
 
@@ -1261,7 +1208,8 @@ fn rename_entry(repo_path: String, entry_path: String, new_name: String) -> Resu
         return Err("A file or folder with that name already exists.".into());
     }
 
-    fs::rename(&resolved, &destination)
+    fs
+        ::rename(&resolved, &destination)
         .map_err(|error| format!("Failed to rename entry: {error}"))?;
 
     Ok(())
@@ -1269,11 +1217,9 @@ fn rename_entry(repo_path: String, entry_path: String, new_name: String) -> Resu
 
 #[tauri::command]
 fn delete_entry(repo_path: String, entry_path: String) -> Result<(), String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo
-        .workdir()
-        .ok_or("Cannot delete files in a bare repository.")?;
+    let workdir = repo.workdir().ok_or("Cannot delete files in a bare repository.")?;
 
     let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
@@ -1297,16 +1243,15 @@ fn delete_entry(repo_path: String, entry_path: String) -> Result<(), String> {
         return Err("Cannot delete this path.".into());
     }
 
-    let relative_path = resolved
-        .strip_prefix(&repo_root)
-        .map_err(|error| error.to_string())?;
+    let relative_path = resolved.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
 
-    if relative_path.components().any(|component| {
-        component
-            .as_os_str()
-            .to_string_lossy()
-            .eq_ignore_ascii_case(".git")
-    }) {
+    if
+        relative_path
+            .components()
+            .any(|component| {
+                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+            })
+    {
         return Err("Cannot modify Git metadata.".into());
     }
 
@@ -1315,7 +1260,8 @@ fn delete_entry(repo_path: String, entry_path: String) -> Result<(), String> {
     }
 
     if metadata.is_dir() {
-        fs::remove_dir_all(&resolved)
+        fs
+            ::remove_dir_all(&resolved)
             .map_err(|error| format!("Failed to delete directory: {error}"))?;
     } else if metadata.is_file() {
         fs::remove_file(&resolved).map_err(|error| format!("Failed to delete file: {error}"))?;
@@ -1331,14 +1277,14 @@ fn contains_git_metadata(path: &Path) -> Result<bool, String> {
         return Ok(false);
     }
 
-    for entry in std::fs::read_dir(path).map_err(|e| e.to_string())? {
+    for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
 
         if entry.file_name().to_string_lossy() == ".git" {
             return Ok(true);
         }
 
-        let metadata = std::fs::symlink_metadata(entry.path()).map_err(|e| e.to_string())?;
+        let metadata = fs::symlink_metadata(entry.path()).map_err(|e| e.to_string())?;
 
         if metadata.is_dir() && contains_git_metadata(&entry.path())? {
             return Ok(true);
@@ -1352,17 +1298,15 @@ fn contains_git_metadata(path: &Path) -> Result<bool, String> {
 fn move_entry(
     repo_path: String,
     entry_path: String,
-    destination_path: String,
+    destination_path: String
 ) -> Result<(), String> {
-    let repo = git2::Repository::open(&repo_path).map_err(|error| error.to_string())?;
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo
-        .workdir()
-        .ok_or("Cannot move files in a bare repository.")?;
+    let workdir = repo.workdir().ok_or("Cannot move files in a bare repository.")?;
 
     let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
 
-    let resolve = |path: &str| -> Result<std::path::PathBuf, String> {
+    let resolve = |path: &str| -> Result<PathBuf, String> {
         let supplied = Path::new(path);
 
         let target = if supplied.is_absolute() {
@@ -1386,16 +1330,15 @@ fn move_entry(
     }
 
     for path in [&source, &destination_dir] {
-        let relative = path
-            .strip_prefix(&repo_root)
-            .map_err(|error| error.to_string())?;
+        let relative = path.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
 
-        if relative.components().any(|component| {
-            component
-                .as_os_str()
-                .to_string_lossy()
-                .eq_ignore_ascii_case(".git")
-        }) {
+        if
+            relative
+                .components()
+                .any(|component| {
+                    component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+                })
+        {
             return Err("Cannot modify Git metadata.".into());
         }
     }
@@ -1430,9 +1373,7 @@ fn move_entry(
         return Err("Cannot move a directory containing Git metadata.".into());
     }
 
-    let filename = source
-        .file_name()
-        .ok_or("Could not determine the entry name.")?;
+    let filename = source.file_name().ok_or("Could not determine the entry name.")?;
 
     let destination = destination_dir.join(filename);
 
@@ -1453,7 +1394,7 @@ fn move_entry(
 fn initialize_repository(
     parent_path: String,
     new_name: Option<String>,
-    initial_branch: String,
+    initial_branch: String
 ) -> Result<String, String> {
     let parent = Path::new(&parent_path)
         .canonicalize()
@@ -1463,24 +1404,25 @@ fn initialize_repository(
         return Err("The selected location is not a directory.".into());
     }
 
-    let valid_branch = git2::Branch::name_is_valid(&initial_branch).map_err(|e| e.to_string())?;
+    let valid_branch = Branch::name_is_valid(&initial_branch).map_err(|e| e.to_string())?;
 
     if !valid_branch {
         return Err("Invalid Git branch name.".into());
     }
 
-    if git2::Repository::discover(&parent).is_ok() {
+    if Repository::discover(&parent).is_ok() {
         return Err("The selected directory is already inside a Git repository.".into());
     }
 
     let target = if let Some(name) = new_name {
-        if name.is_empty()
-            || name == "."
-            || name == ".."
-            || name.contains('/')
-            || name.contains('\\')
-            || name.contains('\0')
-            || name.eq_ignore_ascii_case(".git")
+        if
+            name.is_empty() ||
+            name == "." ||
+            name == ".." ||
+            name.contains('/') ||
+            name.contains('\\') ||
+            name.contains('\0') ||
+            name.eq_ignore_ascii_case(".git")
         {
             return Err("Invalid repository name.".into());
         }
@@ -1494,22 +1436,21 @@ fn initialize_repository(
         parent
     };
 
-    let mut options = git2::RepositoryInitOptions::new();
+    let mut options = RepositoryInitOptions::new();
 
-    options
-        .bare(false)
-        .no_reinit(true)
-        .initial_head(&initial_branch);
+    options.bare(false).no_reinit(true).initial_head(&initial_branch);
 
-    git2::Repository::init_opts(&target, &options)
-        .map_err(|e| format!("Failed to initialize repository: {e}"))?;
+    Repository::init_opts(&target, &options).map_err(|e|
+        format!("Failed to initialize repository: {e}")
+    )?;
 
     Ok(target.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
 fn is_git_repository(path: String) -> Result<bool, String> {
-    let directory = std::path::Path::new(&path)
+    let directory = std::path::Path
+        ::new(&path)
         .canonicalize()
         .map_err(|e| e.to_string())?;
 
@@ -1517,51 +1458,56 @@ fn is_git_repository(path: String) -> Result<bool, String> {
         return Err("Selected path is not a directory.".into());
     }
 
-    match git2::Repository::open(&directory) {
+    match Repository::open(&directory) {
         Ok(repo) => {
             let workdir = match repo.workdir() {
                 Some(path) => path,
-                None => return Ok(false),
+                None => {
+                    return Ok(false);
+                }
             };
 
             Ok(workdir.canonicalize().map_err(|e| e.to_string())? == directory)
         }
-        Err(error) if error.code() == git2::ErrorCode::NotFound => Ok(false),
+        Err(error) if error.code() == ErrorCode::NotFound => Ok(false),
         Err(error) => Err(error.to_string()),
     }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    tauri::Builder
+        ::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![
-            get_repository_tree,
-            read_file,
-            stage_file,
-            unstage_file,
-            commit_changes,
-            get_file_diff,
-            get_commit_history,
-            get_repository_summary,
-            get_local_branches,
-            get_commit_file_changes,
-            switch_branch,
-            get_repository_activity,
-            create_branch,
-            merge_branches,
-            save_file,
-            read_image,
-            read_document,
-            create_entry,
-            rename_entry,
-            delete_entry,
-            move_entry,
-            initialize_repository,
-            is_git_repository,
-        ])
+        .invoke_handler(
+            tauri::generate_handler![
+                get_repository_tree,
+                read_file,
+                stage_file,
+                unstage_file,
+                commit_changes,
+                get_file_diff,
+                get_commit_history,
+                get_repository_summary,
+                get_local_branches,
+                get_commit_file_changes,
+                switch_branch,
+                get_repository_activity,
+                create_branch,
+                merge_branches,
+                save_file,
+                read_image,
+                read_document,
+                create_entry,
+                rename_entry,
+                delete_entry,
+                move_entry,
+                initialize_repository,
+                is_git_repository
+            ]
+        )
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -128,7 +128,7 @@ if (!app) {
 
 // Main HTML code for the interface
 app.innerHTML = appHTML;
-renderRepositoryToolbarIcons()
+renderRepositoryToolbarIcons();
 
 // Variable declearation
 const treeContainer = document.querySelector<HTMLDivElement>("#tree")!;
@@ -136,51 +136,119 @@ const status = document.querySelector<HTMLSpanElement>("#status")!;
 const repoName = document.querySelector<HTMLHeadingElement>("#repo-name")!;
 const repoBranch = document.querySelector<HTMLSpanElement>("#repo-branch");
 const selectButton = document.querySelector<HTMLButtonElement>("#select-repo");
-const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-repo");
+const refreshButton =
+  document.querySelector<HTMLButtonElement>("#refresh-repo");
 const stageButton = document.querySelector<HTMLButtonElement>("#stage-button");
-const commitButton = document.querySelector<HTMLButtonElement>("#commit-button");
-const commitDialog = document.querySelector<HTMLDialogElement>("#commit-dialog");
-const commitMessage = document.querySelector<HTMLTextAreaElement>("#commit-message");
-const cancelCommit = document.querySelector<HTMLButtonElement>("#cancel-commit");
-const commitStaged = document.querySelector<HTMLButtonElement>("#commit-staged");
+const commitButton =
+  document.querySelector<HTMLButtonElement>("#commit-button");
+const commitDialog =
+  document.querySelector<HTMLDialogElement>("#commit-dialog");
+const commitMessage =
+  document.querySelector<HTMLTextAreaElement>("#commit-message");
+const cancelCommit =
+  document.querySelector<HTMLButtonElement>("#cancel-commit");
+const commitStaged =
+  document.querySelector<HTMLButtonElement>("#commit-staged");
 const commitAll = document.querySelector<HTMLButtonElement>("#commit-all");
 const diffToggle = document.querySelector<HTMLInputElement>("#diff-toggle");
-const diffToggleContainer = document.querySelector<HTMLLabelElement>("#diff-toggle-container");
-const overviewButton = document.querySelector<HTMLButtonElement>("#overview-button");
-const activitySection = document.querySelector<HTMLDetailsElement>("#repository-activity");
-const createBranchButton = document.querySelector<HTMLButtonElement>("#create-branch-button");
-const createBranchDialog = document.querySelector<HTMLDialogElement>("#create-branch-dialog");
-const createBranchForm = document.querySelector<HTMLFormElement>("#create-branch-form");
-const newBranchName = document.querySelector<HTMLInputElement>("#new-branch-name");
-const mergeDialog = document.querySelector<HTMLDialogElement>("#merge-branches-dialog");
-const mergeForm = document.querySelector<HTMLFormElement>("#merge-branches-form");
-const otherBranchSelect = document.querySelector<HTMLSelectElement>("#merge-other-branch");
-const cancelMergeButton = document.querySelector<HTMLButtonElement>("#cancel-merge");
-const editFileButton = document.querySelector<HTMLButtonElement>("#edit-file-button");
-const cancelEditButton = document.querySelector<HTMLButtonElement>("#cancel-edit-button");
-const saveFileButton = document.querySelector<HTMLButtonElement>("#save-file-button");
-const markdownToggle = document.querySelector<HTMLInputElement>("#markdown-toggle");
-const markdownToggleContainer = document.querySelector<HTMLLabelElement>("#markdown-toggle-container");
-const hiddenFilesToggle = document.querySelector<HTMLInputElement>("#hidden-files-toggle");
-const hiddenFilesContainer = document.querySelector<HTMLElement>("#hidden-files-container");
-const explorerContextMenu = document.querySelector<HTMLDivElement>("#explorer-context-menu");
-const deleteEntryDialog = document.querySelector<HTMLDialogElement>("#delete-entry-dialog");
-const deleteEntryMessage = document.querySelector<HTMLParagraphElement>("#delete-entry-message");
-const cancelDeleteButton = document.querySelector<HTMLButtonElement>("#cancel-delete-button");
-const confirmDeleteButton = document.querySelector<HTMLButtonElement>("#confirm-delete-button");
-const initRepositoryDialog = document.querySelector<HTMLDialogElement>("#init-repository-dialog");
-const initRepositoryDescription = document.querySelector<HTMLElement>("#init-repository-description");
-const initRepositoryPath = document.querySelector<HTMLInputElement>("#init-repository-path");
-const initRepositoryName = document.querySelector<HTMLInputElement>("#init-repository-name");
-const initRepositoryNameContainer = document.querySelector<HTMLElement>("#init-repository-name-container");
-const initRepositoryBranch = document.querySelector<HTMLInputElement>("#init-repository-branch");
-const cancelInitButton = document.querySelector<HTMLButtonElement>("#cancel-init-button");
-const confirmInitButton = document.querySelector<HTMLButtonElement>("#confirm-init-button");
-const createRepositoryButton = document.querySelector<HTMLButtonElement>("#create-repository-button");
-const gitGuideButton = document.querySelector<HTMLButtonElement>("#git-guide-button");
+const diffToggleContainer = document.querySelector<HTMLLabelElement>(
+  "#diff-toggle-container",
+);
+const overviewButton =
+  document.querySelector<HTMLButtonElement>("#overview-button");
+const activitySection = document.querySelector<HTMLDetailsElement>(
+  "#repository-activity",
+);
+const createBranchButton = document.querySelector<HTMLButtonElement>(
+  "#create-branch-button",
+);
+const createBranchDialog = document.querySelector<HTMLDialogElement>(
+  "#create-branch-dialog",
+);
+const createBranchForm = document.querySelector<HTMLFormElement>(
+  "#create-branch-form",
+);
+const newBranchName =
+  document.querySelector<HTMLInputElement>("#new-branch-name");
+const mergeDialog = document.querySelector<HTMLDialogElement>(
+  "#merge-branches-dialog",
+);
+const mergeForm = document.querySelector<HTMLFormElement>(
+  "#merge-branches-form",
+);
+const otherBranchSelect = document.querySelector<HTMLSelectElement>(
+  "#merge-other-branch",
+);
+const cancelMergeButton =
+  document.querySelector<HTMLButtonElement>("#cancel-merge");
+const editFileButton =
+  document.querySelector<HTMLButtonElement>("#edit-file-button");
+const cancelEditButton = document.querySelector<HTMLButtonElement>(
+  "#cancel-edit-button",
+);
+const saveFileButton =
+  document.querySelector<HTMLButtonElement>("#save-file-button");
+const markdownToggle =
+  document.querySelector<HTMLInputElement>("#markdown-toggle");
+const markdownToggleContainer = document.querySelector<HTMLLabelElement>(
+  "#markdown-toggle-container",
+);
+const hiddenFilesToggle = document.querySelector<HTMLInputElement>(
+  "#hidden-files-toggle",
+);
+const hiddenFilesContainer = document.querySelector<HTMLElement>(
+  "#hidden-files-container",
+);
+const explorerContextMenu = document.querySelector<HTMLDivElement>(
+  "#explorer-context-menu",
+);
+const deleteEntryDialog = document.querySelector<HTMLDialogElement>(
+  "#delete-entry-dialog",
+);
+const deleteEntryMessage = document.querySelector<HTMLParagraphElement>(
+  "#delete-entry-message",
+);
+const cancelDeleteButton = document.querySelector<HTMLButtonElement>(
+  "#cancel-delete-button",
+);
+const confirmDeleteButton = document.querySelector<HTMLButtonElement>(
+  "#confirm-delete-button",
+);
+const initRepositoryDialog = document.querySelector<HTMLDialogElement>(
+  "#init-repository-dialog",
+);
+const initRepositoryDescription = document.querySelector<HTMLElement>(
+  "#init-repository-description",
+);
+const initRepositoryPath = document.querySelector<HTMLInputElement>(
+  "#init-repository-path",
+);
+const initRepositoryName = document.querySelector<HTMLInputElement>(
+  "#init-repository-name",
+);
+const initRepositoryNameContainer = document.querySelector<HTMLElement>(
+  "#init-repository-name-container",
+);
+const initRepositoryBranch = document.querySelector<HTMLInputElement>(
+  "#init-repository-branch",
+);
+const cancelInitButton = document.querySelector<HTMLButtonElement>(
+  "#cancel-init-button",
+);
+const confirmInitButton = document.querySelector<HTMLButtonElement>(
+  "#confirm-init-button",
+);
+const createRepositoryButton = document.querySelector<HTMLButtonElement>(
+  "#create-repository-button",
+);
+const gitGuideButton =
+  document.querySelector<HTMLButtonElement>("#git-guide-button");
 const gitGuidePanel = document.querySelector<HTMLElement>("#git-guide-panel");
-const gitGuideClose = document.querySelector<HTMLButtonElement>("#git-guide-close");
-const repositoryIdentity = document.querySelector<HTMLElement>(".repository-identity");
+const gitGuideClose =
+  document.querySelector<HTMLButtonElement>("#git-guide-close");
+const repositoryIdentity = document.querySelector<HTMLElement>(
+  ".repository-identity",
+);
 
 let mergeCurrentBranch = "";
 let selectedFile: TreeEntry | null = null;
@@ -241,9 +309,9 @@ if (gitGuidePanel) {
       BookOpen,
       X,
       ListTree,
-      Terminal
+      Terminal,
     },
-    root: gitGuidePanel
+    root: gitGuidePanel,
   });
 }
 
@@ -259,18 +327,14 @@ selectButton?.addEventListener("click", async () => {
     return;
   }
   try {
-    const isRepository = await invoke<boolean>(
-      "is_git_repository",
-      { path: selected }
-    );
+    const isRepository = await invoke<boolean>("is_git_repository", {
+      path: selected,
+    });
 
     if (isRepository) {
       await loadRepository(selected);
     } else {
-      showInitializeRepositoryDialog(
-        selected,
-        "existing"
-      );
+      showInitializeRepositoryDialog(selected, "existing");
     }
   } catch (error) {
     alert(`Could not open directory: ${error}`);
@@ -371,13 +435,11 @@ diffToggle?.addEventListener("change", async () => {
 
         const oldLineNumber = document.createElement("span");
         oldLineNumber.className = "line-number";
-        oldLineNumber.textContent =
-          change.old_line_number?.toString() ?? "";
+        oldLineNumber.textContent = change.old_line_number?.toString() ?? "";
 
         const newLineNumber = document.createElement("span");
         newLineNumber.className = "line-number";
-        newLineNumber.textContent =
-          change.new_line_number?.toString() ?? "";
+        newLineNumber.textContent = change.new_line_number?.toString() ?? "";
 
         const content = document.createElement("span");
         content.className = "line-content";
@@ -391,18 +453,16 @@ diffToggle?.addEventListener("change", async () => {
         document.querySelector<HTMLDivElement>("#file-content");
 
       fileContent?.replaceChildren(pre);
-
     } catch (error) {
       console.error("Failed to load diff:", error);
       showingDiff = false;
       updateDiffToggle(selectedFile);
       status.textContent = `Failed to load changes: ${error}`;
     }
-
   } else {
     const fileElement = Array.from(
-      treeContainer.querySelectorAll<HTMLElement>(".file")
-    ).find(element => element.dataset.path === requestedPath);
+      treeContainer.querySelectorAll<HTMLElement>(".file"),
+    ).find((element) => element.dataset.path === requestedPath);
 
     if (fileElement) {
       await openFile(selectedFile, fileElement);
@@ -432,9 +492,11 @@ createBranchButton?.addEventListener("click", (event) => {
   createBranchDialog?.showModal();
 });
 
-document.querySelector<HTMLButtonElement>("#cancel-create-branch")?.addEventListener("click", () => {
-  createBranchDialog?.close();
-});
+document
+  .querySelector<HTMLButtonElement>("#cancel-create-branch")
+  ?.addEventListener("click", () => {
+    createBranchDialog?.close();
+  });
 
 createBranchForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -444,13 +506,13 @@ createBranchForm?.addEventListener("submit", async (event) => {
   const branchName = newBranchName.value.trim();
 
   const submitButton = createBranchForm.querySelector<HTMLButtonElement>(
-    'button[type="submit"]'
+    'button[type="submit"]',
   );
   if (submitButton) submitButton.disabled = true;
   try {
     await invoke("create_branch", {
       repoPath,
-      branchName
+      branchName,
     });
 
     createBranchDialog?.close();
@@ -464,27 +526,31 @@ createBranchForm?.addEventListener("submit", async (event) => {
   }
 });
 
-document.querySelector<HTMLButtonElement>("#open-merge-dialog")?.addEventListener("click", async (event) => {
-  event.preventDefault();
-  event.stopPropagation();
+document
+  .querySelector<HTMLButtonElement>("#open-merge-dialog")
+  ?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-  if (!currentRepoPath || !mergeDialog) return;
+    if (!currentRepoPath || !mergeDialog) return;
 
-  try {
-    mergeCurrentBranch = await populateMergeDialog(currentRepoPath);
+    try {
+      mergeCurrentBranch = await populateMergeDialog(currentRepoPath);
 
-    updateMergePreview();
-    mergeDialog.showModal();
-  } catch (error) {
-    window.alert(String(error));
-  }
-});
+      updateMergePreview();
+      mergeDialog.showModal();
+    } catch (error) {
+      window.alert(String(error));
+    }
+  });
 
 otherBranchSelect?.addEventListener("change", updateMergePreview);
 
-document.querySelectorAll<HTMLInputElement>('input[name="merge-direction"]').forEach(radio => {
-  radio.addEventListener("change", updateMergePreview);
-});
+document
+  .querySelectorAll<HTMLInputElement>('input[name="merge-direction"]')
+  .forEach((radio) => {
+    radio.addEventListener("change", updateMergePreview);
+  });
 
 mergeForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -498,15 +564,13 @@ mergeForm?.addEventListener("submit", async (event) => {
 
   const confirmed = window.confirm(
     `Merge '${source}' into '${target}'?\n\n` +
-    `'${target}' will receive the changes.\n` +
-    `Your working directory must be clean.`
+      `'${target}' will receive the changes.\n` +
+      `Your working directory must be clean.`,
   );
 
   if (!confirmed) return;
 
-  const button = document.querySelector<HTMLButtonElement>(
-    "#confirm-merge"
-  );
+  const button = document.querySelector<HTMLButtonElement>("#confirm-merge");
 
   if (button) button.disabled = true;
 
@@ -514,7 +578,7 @@ mergeForm?.addEventListener("submit", async (event) => {
     const result = await invoke<string>("merge_branches", {
       repoPath,
       sourceBranch: source,
-      targetBranch: target
+      targetBranch: target,
     });
 
     mergeDialog?.close();
@@ -526,10 +590,7 @@ mergeForm?.addEventListener("submit", async (event) => {
     try {
       await loadRepository(repoPath);
     } catch (refreshError) {
-      console.error(
-        "Failed to refresh repository after merge:",
-        refreshError
-      );
+      console.error("Failed to refresh repository after merge:", refreshError);
     }
 
     if (button) button.disabled = false;
@@ -547,14 +608,10 @@ editFileButton?.addEventListener("click", () => {
 cancelEditButton?.addEventListener("click", async () => {
   if (!selectedFile) return;
   if (editedFileContent !== originalFileContent) {
-    const confirmed = window.confirm(
-      "Discard your unsaved changes?"
-    );
+    const confirmed = window.confirm("Discard your unsaved changes?");
     if (!confirmed) return;
   }
-  const selectedElement = document.querySelector<HTMLElement>(
-    ".file.selected"
-  );
+  const selectedElement = document.querySelector<HTMLElement>(".file.selected");
 
   if (!selectedElement) return;
 
@@ -577,7 +634,7 @@ saveFileButton?.addEventListener("click", async () => {
     await invoke("save_file", {
       repoPath,
       filePath,
-      contents
+      contents,
     });
 
     originalFileContent = contents;
@@ -585,11 +642,9 @@ saveFileButton?.addEventListener("click", async () => {
     isEditing = false;
 
     await loadRepository(repoPath);
-
   } catch (error) {
     console.error("Failed to save file:", error);
     window.alert(`Failed to save file: ${error}`);
-
   } finally {
     saveFileButton.textContent = "Save";
     updateEditingButtons();
@@ -613,9 +668,7 @@ hiddenFilesToggle?.addEventListener("change", () => {
 });
 
 document.addEventListener("click", (event) => {
-  if (
-    !explorerContextMenu?.contains(event.target as Node)
-  ) {
+  if (!explorerContextMenu?.contains(event.target as Node)) {
     hideExplorerContextMenu();
   }
 });
@@ -630,7 +683,7 @@ window.addEventListener("blur", hideExplorerContextMenu);
 
 explorerContextMenu?.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
-    "button[data-action]"
+    "button[data-action]",
   );
 
   if (!button || !contextMenuEntry) return;
@@ -705,9 +758,8 @@ confirmInitButton?.addEventListener("click", async () => {
   const parentPath = initRepositoryPath.value;
   const initialBranch = initRepositoryBranch.value.trim();
 
-  const newName = repositoryInitMode === "new"
-    ? initRepositoryName.value.trim()
-    : null;
+  const newName =
+    repositoryInitMode === "new" ? initRepositoryName.value.trim() : null;
 
   if (!initialBranch || (repositoryInitMode === "new" && !newName)) {
     alert("Please complete the required fields.");
@@ -717,14 +769,11 @@ confirmInitButton?.addEventListener("click", async () => {
   confirmInitButton.disabled = true;
 
   try {
-    const repositoryPath = await invoke<string>(
-      "initialize_repository",
-      {
-        parentPath,
-        newName,
-        initialBranch,
-      }
-    );
+    const repositoryPath = await invoke<string>("initialize_repository", {
+      parentPath,
+      newName,
+      initialBranch,
+    });
 
     initRepositoryDialog?.close();
 
@@ -775,7 +824,7 @@ function countChangedFiles(entry: TreeEntry): number {
 
   return entry.children.reduce(
     (total, child) => total + countChangedFiles(child),
-    0
+    0,
   );
 }
 
@@ -811,7 +860,14 @@ function updateEditingButtons() {
     return;
   }
 
-  editFileButton.hidden = !selectedFile || isUnsupportedFile || isImageFile(selectedFile.name) || isPDFFile(selectedFile.name) || isDOCXFile(selectedFile.name) || isEditing || showingDiff;
+  editFileButton.hidden =
+    !selectedFile ||
+    isUnsupportedFile ||
+    isImageFile(selectedFile.name) ||
+    isPDFFile(selectedFile.name) ||
+    isDOCXFile(selectedFile.name) ||
+    isEditing ||
+    showingDiff;
 
   cancelEditButton.hidden = !isEditing;
   saveFileButton.hidden = !isEditing;
@@ -842,7 +898,6 @@ async function performCommit(commitAllChanges: boolean) {
 
     await loadRepository(currentRepoPath);
     commitDialog.close();
-
   } catch (error) {
     console.error("Commit failed:", error);
     status.textContent = `Commit failed: ${error}`;
@@ -856,22 +911,25 @@ async function performCommit(commitAllChanges: boolean) {
 function updateDiffToggle(entry: TreeEntry | null) {
   if (!diffToggle || !diffToggleContainer) return;
 
-  const hasChanges = Boolean(
-    entry?.status?.staged || entry?.status?.unstaged
-  );
+  const hasChanges = Boolean(entry?.status?.staged || entry?.status?.unstaged);
 
-  diffToggleContainer.hidden = !hasChanges || Boolean(entry && (isImageFile(entry.name) || isPDFFile(entry.name) || isDOCXFile(entry.name)));
+  diffToggleContainer.hidden =
+    !hasChanges ||
+    Boolean(
+      entry &&
+      (isImageFile(entry.name) ||
+        isPDFFile(entry.name) ||
+        isDOCXFile(entry.name)),
+    );
   diffToggle.checked = hasChanges && showingDiff;
 }
 
 function updateMarkdownToggle(): void {
   if (!markdownToggle || !markdownToggleContainer) return;
 
-  const isMarkdown = selectedFile !== null &&
-    isMarkdownFile(selectedFile.name);
+  const isMarkdown = selectedFile !== null && isMarkdownFile(selectedFile.name);
 
-  markdownToggleContainer.hidden =
-    !isMarkdown || isEditing || showingDiff;
+  markdownToggleContainer.hidden = !isMarkdown || isEditing || showingDiff;
 
   markdownToggle.checked = showingMarkdownSource;
 }
@@ -1007,9 +1065,9 @@ function renderTreeIcons(): void {
       FileMusic,
       FilePlay,
       FileTerminal,
-      FileQuestionMark
+      FileQuestionMark,
     },
-    root: tree
+    root: tree,
   });
   if (explorerContextMenu) {
     createIcons({
@@ -1018,7 +1076,7 @@ function renderTreeIcons(): void {
         FolderPlus,
         Pencil,
         FolderInput,
-        Trash2
+        Trash2,
       },
       root: explorerContextMenu,
     });
@@ -1039,8 +1097,9 @@ function renderRepositoryToolbarIcons(): void {
     });
   }
 
-  const repositoryIdentity =
-    document.querySelector<HTMLElement>(".repository-identity");
+  const repositoryIdentity = document.querySelector<HTMLElement>(
+    ".repository-identity",
+  );
 
   if (repositoryIdentity) {
     createIcons({
@@ -1050,8 +1109,7 @@ function renderRepositoryToolbarIcons(): void {
       root: repositoryIdentity,
     });
 
-    const guidePanel =
-      document.querySelector<HTMLElement>("#git-guide-panel");
+    const guidePanel = document.querySelector<HTMLElement>("#git-guide-panel");
 
     if (guidePanel) {
       createIcons({
@@ -1067,12 +1125,17 @@ function renderRepositoryToolbarIcons(): void {
 }
 
 // Recursively renders the file tree
-function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<string> = new Set()): HTMLElement {
+function renderEntry(
+  entry: TreeEntry,
+  isRoot = false,
+  expandedDirectories: Set<string> = new Set(),
+): HTMLElement {
   if (entry.is_dir) {
     const details = document.createElement("details");
     details.className = "directory";
     details.dataset.path = entry.path;
-    details.open = !entry.unreadable && (isRoot || expandedDirectories.has(entry.path));
+    details.open =
+      !entry.unreadable && (isRoot || expandedDirectories.has(entry.path));
 
     const summary = document.createElement("summary");
     const icon = document.createElement("i");
@@ -1082,14 +1145,14 @@ function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<
 
     icon.setAttribute(
       "data-lucide",
-      entry.unreadable ? "lock" : details.open ? "folder-open" : "folder"
+      entry.unreadable ? "lock" : details.open ? "folder-open" : "folder",
     );
     icon.className = "tree-icon";
     summary.appendChild(icon);
     const label = document.createTextNode(
       entry.unreadable
         ? ` ${entry.name} (Access denied)`
-        : ` ${entry.name || "Repository root"}`
+        : ` ${entry.name || "Repository root"}`,
     );
     summary.appendChild(label);
 
@@ -1144,7 +1207,7 @@ function renderEntry(entry: TreeEntry, isRoot = false, expandedDirectories: Set<
 
       createIcons({
         icons: { Folder, FolderOpen },
-        root: summary
+        root: summary,
       });
     });
     return details;
@@ -1192,7 +1255,7 @@ function getExpandedDirectories(): Set<string> {
 
   treeContainer
     .querySelectorAll<HTMLDetailsElement>("details.directory[open]")
-    .forEach(details => {
+    .forEach((details) => {
       if (details.dataset.path !== undefined) {
         expanded.add(details.dataset.path);
       }
@@ -1205,10 +1268,15 @@ function getExpandedDirectories(): Set<string> {
 async function loadRepository(path: string) {
   status.textContent = "Refreshing repository…";
   status.classList.remove("success");
-  const summary = document.querySelector<HTMLDivElement>("#repo-status-summary");
+  const summary = document.querySelector<HTMLDivElement>(
+    "#repo-status-summary",
+  );
   summary?.replaceChildren();
   try {
-    const root = await invoke<TreeEntry>("get_repository_tree", { path: path, showHidden: showHiddenFiles });
+    const root = await invoke<TreeEntry>("get_repository_tree", {
+      path: path,
+      showHidden: showHiddenFiles,
+    });
 
     const repositorySummary = await loadRepositorySummary(path);
     await loadCommitHistory(path);
@@ -1222,16 +1290,13 @@ async function loadRepository(path: string) {
     renderGitGuideVisual(gitExplanations[currentGuideTopic].visual);
 
     const expandedDirectories =
-      currentRepoPath === path
-        ? getExpandedDirectories()
-        : new Set<string>();
+      currentRepoPath === path ? getExpandedDirectories() : new Set<string>();
 
     repoName.textContent = root.name || "Repository";
     currentRepoPath = path;
 
     if (repoBranch) {
-      repoBranch.textContent =
-        repositorySummary?.current_branch ?? "No branch";
+      repoBranch.textContent = repositorySummary?.current_branch ?? "No branch";
     }
 
     if (commitButton) {
@@ -1251,8 +1316,8 @@ async function loadRepository(path: string) {
       const updatedFile = findFileByPath(root, selectedPath);
 
       const fileElement = Array.from(
-        treeContainer.querySelectorAll<HTMLElement>(".file")
-      ).find(element => element.dataset.path === selectedPath);
+        treeContainer.querySelectorAll<HTMLElement>(".file"),
+      ).find((element) => element.dataset.path === selectedPath);
 
       if (updatedFile && fileElement) {
         await openFile(updatedFile, fileElement);
@@ -1277,9 +1342,8 @@ async function loadRepository(path: string) {
     }
 
     if (overviewButton) {
-      overviewButton.disabled = false
+      overviewButton.disabled = false;
     }
-
   } catch (error) {
     status.textContent = "Failed to load repository";
     console.error("Failed to load repository:", error);
@@ -1306,7 +1370,7 @@ function createStatusIndicator(status: string | null): HTMLElement | null {
     untracked: "U",
     deleted: "D",
     renamed: "R",
-    conflicted: "!"
+    conflicted: "!",
   };
 
   const descriptions: Record<string, string> = {
@@ -1315,7 +1379,7 @@ function createStatusIndicator(status: string | null): HTMLElement | null {
     untracked: "Untracked",
     deleted: "Deleted",
     renamed: "Renamed",
-    conflicted: "Conflicted"
+    conflicted: "Conflicted",
   };
 
   indicator.textContent = labels[status] ?? "?";
@@ -1350,7 +1414,9 @@ function getStatusCounts(root: TreeEntry): Record<string, number> {
 
 // Creates a summary of git statuses, displayed at the top right
 function renderStatusSummary(root: TreeEntry) {
-  const summary = document.querySelector<HTMLDivElement>("#repo-status-summary");
+  const summary = document.querySelector<HTMLDivElement>(
+    "#repo-status-summary",
+  );
   if (!summary) return;
 
   summary.replaceChildren();
@@ -1363,7 +1429,7 @@ function renderStatusSummary(root: TreeEntry) {
     untracked: "U",
     deleted: "D",
     renamed: "R",
-    conflicted: "!"
+    conflicted: "!",
   };
 
   const order = [
@@ -1377,7 +1443,7 @@ function renderStatusSummary(root: TreeEntry) {
     "unstaged-untracked",
     "unstaged-deleted",
     "unstaged-renamed",
-    "unstaged-conflicted"
+    "unstaged-conflicted",
   ];
 
   for (const key of order) {
@@ -1412,7 +1478,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
 
   if (isEditing && editedFileContent !== originalFileContent) {
     const confirmed = window.confirm(
-      "You have unsaved changes. Discard them and open another file?"
+      "You have unsaved changes. Discard them and open another file?",
     );
 
     if (!confirmed) return;
@@ -1447,10 +1513,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
 
   try {
     if (isImageFile(entry.name)) {
-      const imageURL = await loadLocalImage(
-        currentRepoPath,
-        entry.path
-      );
+      const imageURL = await loadLocalImage(currentRepoPath, entry.path);
 
       if (selectedFile !== entry) {
         URL.revokeObjectURL(imageURL);
@@ -1476,7 +1539,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
 
       const bytes = await invoke<number[]>("read_document", {
         repoPath: currentRepoPath,
-        filePath: entry.path
+        filePath: entry.path,
       });
 
       if (selectedFile !== entry) return;
@@ -1494,7 +1557,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
 
       const bytes = await invoke<number[]>("read_document", {
         repoPath: currentRepoPath,
-        filePath: entry.path
+        filePath: entry.path,
       });
 
       if (selectedFile !== entry) return;
@@ -1508,7 +1571,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
     try {
       contents = await invoke<string>("read_file", {
         repoPath: currentRepoPath,
-        filePath: entry.path
+        filePath: entry.path,
       });
     } catch (error) {
       if (String(error).includes("UNSUPPORTED_BINARY_FILE")) {
@@ -1575,10 +1638,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   }
 }
 
-function renderPlainText(
-  contents: string,
-  container: HTMLElement
-): void {
+function renderPlainText(contents: string, container: HTMLElement): void {
   const pre = document.createElement("pre");
   pre.className = "file-text";
 
@@ -1608,9 +1668,7 @@ function renderCurrentMarkdownView(): void {
     return;
   }
 
-  const fileContent = document.querySelector<HTMLElement>(
-    "#file-content"
-  );
+  const fileContent = document.querySelector<HTMLElement>("#file-content");
 
   if (!fileContent) return;
 
@@ -1682,7 +1740,9 @@ function calculateGraphLanes(commits: CommitInfo[]): GraphCommit[] {
   return graphCommits;
 }
 
-function calculateGraphConnections(graphCommits: GraphCommit[]): GraphConnection[] {
+function calculateGraphConnections(
+  graphCommits: GraphCommit[],
+): GraphConnection[] {
   const connections: GraphConnection[] = [];
 
   const commitPositions = new Map<string, GraphCommit>();
@@ -1711,7 +1771,7 @@ function calculateGraphConnections(graphCommits: GraphCommit[]): GraphConnection
 
 async function loadCommitHistory(repoPath: string) {
   const tableBody = document.querySelector<HTMLTableSectionElement>(
-    "#commit-history-body"
+    "#commit-history-body",
   );
 
   if (!tableBody) return;
@@ -1732,7 +1792,7 @@ async function loadCommitHistory(repoPath: string) {
     const graphCommits = currentGraphCommits;
     const graphConnections = currentGraphConnections;
 
-    const maxLane = Math.max(0, ...graphCommits.map(c => c.lane));
+    const maxLane = Math.max(0, ...graphCommits.map((c) => c.lane));
     const graphWidth = 40 + maxLane * 24;
 
     tableBody.replaceChildren();
@@ -1749,8 +1809,9 @@ async function loadCommitHistory(repoPath: string) {
           return;
         }
 
-        tableBody.querySelectorAll(".commit-history-row.selected")
-          .forEach(element => element.classList.remove("selected"));
+        tableBody
+          .querySelectorAll(".commit-history-row.selected")
+          .forEach((element) => element.classList.remove("selected"));
 
         closeCommitDetailsRow();
 
@@ -1798,9 +1859,7 @@ async function loadCommitHistory(repoPath: string) {
       author.textContent = commit.author;
 
       const date = document.createElement("td");
-      date.textContent = new Date(
-        commit.timestamp * 1000
-      ).toLocaleString();
+      date.textContent = new Date(commit.timestamp * 1000).toLocaleString();
 
       row.append(graphCell, message, hash, author, date);
       tableBody.appendChild(row);
@@ -1819,14 +1878,8 @@ async function loadCommitHistory(repoPath: string) {
 
     const container = document.querySelector<HTMLElement>(".table-container");
     if (container) {
-      renderCommitGraph(
-        graphCommits,
-        graphConnections,
-        tableBody,
-        container
-      );
+      renderCommitGraph(graphCommits, graphConnections, tableBody, container);
     }
-
   } catch (error) {
     console.error("Failed to load commit history:", error);
 
@@ -1844,12 +1897,10 @@ async function loadCommitHistory(repoPath: string) {
 
 function updateCommitGraph() {
   const tableBody = document.querySelector<HTMLTableSectionElement>(
-    "#commit-history-body"
+    "#commit-history-body",
   );
 
-  const container = document.querySelector<HTMLElement>(
-    ".table-container"
-  );
+  const container = document.querySelector<HTMLElement>(".table-container");
 
   if (!tableBody || !container) return;
 
@@ -1859,20 +1910,34 @@ function updateCommitGraph() {
     currentGraphCommits,
     currentGraphConnections,
     tableBody,
-    container
+    container,
   );
 }
 
-async function loadRepositorySummary(repoPath: string): Promise<RepositorySummary | null> {
+async function loadRepositorySummary(
+  repoPath: string,
+): Promise<RepositorySummary | null> {
   const commits = document.querySelector<HTMLElement>("#summary-commits");
   const branches = document.querySelector<HTMLElement>("#summary-branches");
-  const contributors = document.querySelector<HTMLElement>("#summary-contributors");
-  const currentBranch = document.querySelector<HTMLElement>("#summary-current-branch");
+  const contributors = document.querySelector<HTMLElement>(
+    "#summary-contributors",
+  );
+  const currentBranch = document.querySelector<HTMLElement>(
+    "#summary-current-branch",
+  );
   const changes = document.querySelector<HTMLElement>("#summary-changes");
-  const latestCommit = document.querySelector<HTMLElement>("#summary-latest-commit");
+  const latestCommit = document.querySelector<HTMLElement>(
+    "#summary-latest-commit",
+  );
 
-  if (!commits || !branches || !contributors ||
-    !currentBranch || !changes || !latestCommit) {
+  if (
+    !commits ||
+    !branches ||
+    !contributors ||
+    !currentBranch ||
+    !changes ||
+    !latestCommit
+  ) {
     return null;
   }
 
@@ -1885,9 +1950,10 @@ async function loadRepositorySummary(repoPath: string): Promise<RepositorySummar
     contributors.textContent = summary.contributor_count.toLocaleString();
     currentBranch.textContent =
       summary.current_branch ?? "Detached HEAD / No commits";
-    changes.textContent = summary.changed_files === 0
-      ? "Clean"
-      : `${summary.changed_files} changed file${summary.changed_files === 1 ? "" : "s"}`;
+    changes.textContent =
+      summary.changed_files === 0
+        ? "Clean"
+        : `${summary.changed_files} changed file${summary.changed_files === 1 ? "" : "s"}`;
     latestCommit.textContent = summary.latest_commit
       ? summary.latest_commit.substring(0, 7)
       : "No commits";
@@ -1964,18 +2030,19 @@ async function loadLocalBranches(repoPath: string) {
     if (branches.length === 0) {
       branchList.textContent = "No local branches found.";
     }
-
   } catch (error) {
     console.error("Failed to load branches:", error);
     branchList.textContent = `Unable to load branches: ${error}`;
   }
 }
 
-function calculateGraphPositions(graphCommits: GraphCommit[], tableBody: HTMLTableSectionElement, container: HTMLElement): GraphPoint[] {
+function calculateGraphPositions(
+  graphCommits: GraphCommit[],
+  tableBody: HTMLTableSectionElement,
+  container: HTMLElement,
+): GraphPoint[] {
   const rows = Array.from(
-    tableBody.querySelectorAll<HTMLTableRowElement>(
-      "tr.commit-history-row"
-    )
+    tableBody.querySelectorAll<HTMLTableRowElement>("tr.commit-history-row"),
   );
   const containerRect = container.getBoundingClientRect();
 
@@ -1994,22 +2061,23 @@ function calculateGraphPositions(graphCommits: GraphCommit[], tableBody: HTMLTab
     const cellRect = cell.getBoundingClientRect();
 
     return {
-      x: cellRect.left - containerRect.left
-        + container.scrollLeft
-        + laneOffset
-        + graphCommit.lane * laneSpacing,
+      x:
+        cellRect.left -
+        containerRect.left +
+        container.scrollLeft +
+        laneOffset +
+        graphCommit.lane * laneSpacing,
 
-      y: rowRect.top - containerRect.top
-        + container.scrollTop
-        + rowRect.height / 2,
+      y:
+        rowRect.top -
+        containerRect.top +
+        container.scrollTop +
+        rowRect.height / 2,
     };
   });
 }
 
-function createConnectionPath(
-  start: GraphPoint,
-  end: GraphPoint
-): string {
+function createConnectionPath(start: GraphPoint, end: GraphPoint): string {
   if (start.x === end.x) {
     return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
   }
@@ -2027,14 +2095,15 @@ function createConnectionPath(
     `;
 }
 
-function renderCommitGraph(graphCommits: GraphCommit[], connections: GraphConnection[], tableBody: HTMLTableSectionElement, container: HTMLElement) {
+function renderCommitGraph(
+  graphCommits: GraphCommit[],
+  connections: GraphConnection[],
+  tableBody: HTMLTableSectionElement,
+  container: HTMLElement,
+) {
   container.querySelector(".commit-graph-overlay")?.remove();
 
-  const points = calculateGraphPositions(
-    graphCommits,
-    tableBody,
-    container
-  );
+  const points = calculateGraphPositions(graphCommits, tableBody, container);
 
   const svgNS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(svgNS, "svg");
@@ -2055,7 +2124,7 @@ function renderCommitGraph(graphCommits: GraphCommit[], connections: GraphConnec
   mask.appendChild(visibleArea);
 
   const detailsRow = tableBody.querySelector<HTMLElement>(
-    ".commit-details-row"
+    ".commit-details-row",
   );
   if (detailsRow) {
     const containerRect = container.getBoundingClientRect();
@@ -2066,7 +2135,7 @@ function renderCommitGraph(graphCommits: GraphCommit[], connections: GraphConnec
     hiddenArea.setAttribute("x", "0");
     hiddenArea.setAttribute(
       "y",
-      String(detailsRect.top - containerRect.top + container.scrollTop)
+      String(detailsRect.top - containerRect.top + container.scrollTop),
     );
     hiddenArea.setAttribute("width", String(container.scrollWidth));
     hiddenArea.setAttribute("height", String(detailsRect.height));
@@ -2123,9 +2192,7 @@ function showCommitDetails(commit: CommitInfo) {
   hash.textContent = commit.hash;
   author.textContent = commit.author;
 
-  date.textContent = new Date(
-    commit.timestamp * 1000
-  ).toLocaleString();
+  date.textContent = new Date(commit.timestamp * 1000).toLocaleString();
 
   parents.replaceChildren();
 
@@ -2147,7 +2214,8 @@ function showCommitDetails(commit: CommitInfo) {
 function closeCommitDetailsRow() {
   const details = document.querySelector<HTMLElement>("#commit-details");
   const detailsRow = document.querySelector<HTMLElement>(".commit-details-row");
-  const tableContainer = document.querySelector<HTMLElement>(".table-container");
+  const tableContainer =
+    document.querySelector<HTMLElement>(".table-container");
 
   if (details && tableContainer) {
     details.hidden = true;
@@ -2158,9 +2226,7 @@ function closeCommitDetailsRow() {
 }
 
 async function loadCommitFileChanges(repoPath: string, commitHash: string) {
-  const container = document.querySelector<HTMLElement>(
-    "#commit-changes-list"
-  );
+  const container = document.querySelector<HTMLElement>("#commit-changes-list");
 
   if (!container) return;
 
@@ -2171,12 +2237,12 @@ async function loadCommitFileChanges(repoPath: string, commitHash: string) {
       "get_commit_file_changes",
       {
         repoPath,
-        commitHash
-      }
+        commitHash,
+      },
     );
 
     const selected = document.querySelector<HTMLTableRowElement>(
-      ".commit-history-row.selected"
+      ".commit-history-row.selected",
     );
 
     if (selected?.dataset.commitHash !== commitHash) return;
@@ -2203,15 +2269,13 @@ async function loadCommitFileChanges(repoPath: string, commitHash: string) {
 
       const additions = document.createElement("span");
       additions.className = "commit-change-additions";
-      additions.textContent = change.additions === null
-        ? "—"
-        : `+${change.additions}`;
+      additions.textContent =
+        change.additions === null ? "—" : `+${change.additions}`;
 
       const deletions = document.createElement("span");
       deletions.className = "commit-change-deletions";
-      deletions.textContent = change.deletions === null
-        ? "—"
-        : `-${change.deletions}`;
+      deletions.textContent =
+        change.deletions === null ? "—" : `-${change.deletions}`;
 
       fileRow.append(name, status, additions, deletions);
       container.appendChild(fileRow);
@@ -2219,7 +2283,7 @@ async function loadCommitFileChanges(repoPath: string, commitHash: string) {
     updateCommitGraph();
   } catch (error) {
     const selected = document.querySelector<HTMLTableRowElement>(
-      ".commit-history-row.selected"
+      ".commit-history-row.selected",
     );
 
     if (selected?.dataset.commitHash !== commitHash) return;
@@ -2228,11 +2292,14 @@ async function loadCommitFileChanges(repoPath: string, commitHash: string) {
   }
 }
 
-async function switchBranch(repoPath: string, branchName: string): Promise<void> {
+async function switchBranch(
+  repoPath: string,
+  branchName: string,
+): Promise<void> {
   try {
     await invoke("switch_branch", {
       repoPath,
-      branchName
+      branchName,
     });
     await loadRepository(repoPath);
   } catch (error) {
@@ -2241,11 +2308,7 @@ async function switchBranch(repoPath: string, branchName: string): Promise<void>
 }
 
 function getWeekStart(date: Date): Date {
-  const start = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate()
-  );
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
   const day = (start.getDay() + 6) % 7;
 
@@ -2270,12 +2333,12 @@ function calculateWeeklyActivity(commits: ActivityCommit[]) {
 
     const startLabel = week.toLocaleDateString(undefined, {
       month: "short",
-      day: "numeric"
+      day: "numeric",
     });
 
     const endLabel = weekEnd.toLocaleDateString(undefined, {
       month: "short",
-      day: "numeric"
+      day: "numeric",
     });
 
     labels.push(`${startLabel} - ${endLabel}`);
@@ -2305,25 +2368,21 @@ function renderActivityStatistics() {
   const commits = getActivityInRange();
 
   const activeDays = new Set(
-    commits.map(commit =>
-      new Date(commit.timestamp * 1000).toDateString()
-    )
+    commits.map((commit) => new Date(commit.timestamp * 1000).toDateString()),
   );
 
-  const contributors = new Set(
-    commits.map(commit => commit.author)
-  );
+  const contributors = new Set(commits.map((commit) => commit.author));
 
   const totalElement = document.querySelector<HTMLElement>(
-    "#activity-total-commits"
+    "#activity-total-commits",
   );
 
   const daysElement = document.querySelector<HTMLElement>(
-    "#activity-active-days"
+    "#activity-active-days",
   );
 
   const contributorsElement = document.querySelector<HTMLElement>(
-    "#activity-contributors"
+    "#activity-contributors",
   );
 
   if (totalElement) {
@@ -2341,7 +2400,7 @@ function renderActivityStatistics() {
 
 function renderContributorActivity() {
   const container = document.querySelector<HTMLElement>(
-    "#activity-contributors-list"
+    "#activity-contributors-list",
   );
 
   if (!container) return;
@@ -2352,14 +2411,10 @@ function renderContributorActivity() {
   const counts = new Map<string, number>();
 
   for (const commit of commits) {
-    counts.set(
-      commit.author,
-      (counts.get(commit.author) ?? 0) + 1
-    );
+    counts.set(commit.author, (counts.get(commit.author) ?? 0) + 1);
   }
 
-  const contributors = Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1]);
+  const contributors = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
 
   if (contributors.length === 0) {
     container.textContent = "No contributor activity in this period.";
@@ -2397,13 +2452,9 @@ function renderContributorActivity() {
 }
 
 function renderRepositoryActivity() {
-  const canvas = document.querySelector<HTMLCanvasElement>(
-    "#activity-chart"
-  );
+  const canvas = document.querySelector<HTMLCanvasElement>("#activity-chart");
 
-  const section = document.querySelector<HTMLElement>(
-    "#repository-activity"
-  );
+  const section = document.querySelector<HTMLElement>("#repository-activity");
 
   if (!canvas || !section) return;
 
@@ -2417,36 +2468,38 @@ function renderRepositoryActivity() {
     type: "bar",
     data: {
       labels,
-      datasets: [{
-        label: "Commits",
-        data: counts,
-        backgroundColor: "#61afef",
-        borderRadius: 4
-      }]
+      datasets: [
+        {
+          label: "Commits",
+          data: counts,
+          backgroundColor: "#61afef",
+          borderRadius: 4,
+        },
+      ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          display: false
-        }
+          display: false,
+        },
       },
       scales: {
         x: {
           ticks: {
-            color: "#a0a6b0"
-          }
+            color: "#a0a6b0",
+          },
         },
         y: {
           beginAtZero: true,
           ticks: {
             color: "#a0a6b0",
-            precision: 0
-          }
-        }
-      }
-    }
+            precision: 0,
+          },
+        },
+      },
+    },
   });
 
   renderActivityStatistics();
@@ -2459,7 +2512,7 @@ function getActivityInRange(): ActivityCommit[] {
 
   const now = Date.now();
 
-  return currentActivity.filter(commit => {
+  return currentActivity.filter((commit) => {
     const timestamp = commit.timestamp * 1000;
     return timestamp >= start.getTime() && timestamp <= now;
   });
@@ -2473,10 +2526,9 @@ async function loadRepositoryActivity(repoPath: string) {
   activityChart = null;
 
   try {
-    const commits = await invoke<ActivityCommit[]>(
-      "get_repository_activity",
-      { repoPath }
-    );
+    const commits = await invoke<ActivityCommit[]>("get_repository_activity", {
+      repoPath,
+    });
 
     if (requestId !== activityRequestId) return;
 
@@ -2490,15 +2542,14 @@ async function loadRepositoryActivity(repoPath: string) {
 }
 
 async function populateMergeDialog(repoPath: string) {
-  const branches = await invoke<BranchInfo[]>(
-    "get_local_branches",
-    { repoPath }
-  );
+  const branches = await invoke<BranchInfo[]>("get_local_branches", {
+    repoPath,
+  });
 
-  const current = branches.find(branch => branch.is_current);
+  const current = branches.find((branch) => branch.is_current);
 
   const select = document.querySelector<HTMLSelectElement>(
-    "#merge-other-branch"
+    "#merge-other-branch",
   );
 
   if (!current || !select) {
@@ -2526,7 +2577,7 @@ async function populateMergeDialog(repoPath: string) {
 
 function getMergeDirection() {
   const selected = document.querySelector<HTMLInputElement>(
-    'input[name="merge-direction"]:checked'
+    'input[name="merge-direction"]:checked',
   );
 
   const otherBranch = otherBranchSelect?.value ?? "";
@@ -2534,30 +2585,27 @@ function getMergeDirection() {
   if (selected?.value === "into-other") {
     return {
       source: mergeCurrentBranch,
-      target: otherBranch
+      target: otherBranch,
     };
   }
 
   return {
     source: otherBranch,
-    target: mergeCurrentBranch
+    target: mergeCurrentBranch,
   };
 }
 
 function updateMergePreview() {
   const { source, target } = getMergeDirection();
 
-  const title = document.querySelector<HTMLElement>(
-    "#merge-preview-title"
-  );
+  const title = document.querySelector<HTMLElement>("#merge-preview-title");
 
   const description = document.querySelector<HTMLElement>(
-    "#merge-preview-description"
+    "#merge-preview-description",
   );
 
-  const confirmButton = document.querySelector<HTMLButtonElement>(
-    "#confirm-merge"
-  );
+  const confirmButton =
+    document.querySelector<HTMLButtonElement>("#confirm-merge");
 
   if (!title || !description || !confirmButton) return;
 
@@ -2573,9 +2621,7 @@ function updateMergePreview() {
 function startFileEditing() {
   if (!selectedFile || isEditing || showingDiff) return;
 
-  const fileContent = document.querySelector<HTMLDivElement>(
-    "#file-content"
-  );
+  const fileContent = document.querySelector<HTMLDivElement>("#file-content");
 
   if (!fileContent) return;
 
@@ -2608,16 +2654,13 @@ function confirmDiscardEdits(): boolean {
   if (!isEditing || editedFileContent === originalFileContent) {
     return true;
   }
-  return window.confirm(
-    "You have unsaved changes. Discard them?"
-  );
+  return window.confirm("You have unsaved changes. Discard them?");
 }
 
 function isMarkdownFile(filename: string): boolean {
   const extension = filename.toLowerCase();
 
-  return extension.endsWith(".md") ||
-    extension.endsWith(".markdown");
+  return extension.endsWith(".md") || extension.endsWith(".markdown");
 }
 
 function isImageFile(filename: string): boolean {
@@ -2636,11 +2679,11 @@ function renderMarkdown(contents: string, container: HTMLElement): void {
   const html = marked.parse(contents, {
     async: false,
     gfm: true,
-    breaks: false
+    breaks: false,
   });
 
   const sanitizedHTML = DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true }
+    USE_PROFILES: { html: true },
   });
 
   const preview = document.createElement("div");
@@ -2648,7 +2691,7 @@ function renderMarkdown(contents: string, container: HTMLElement): void {
 
   preview.innerHTML = sanitizedHTML;
 
-  preview.querySelectorAll("img").forEach(image => {
+  preview.querySelectorAll("img").forEach((image) => {
     const source = image.getAttribute("src");
 
     if (!source) {
@@ -2667,17 +2710,20 @@ function renderMarkdown(contents: string, container: HTMLElement): void {
     }
   });
 
-  preview.querySelectorAll("a").forEach(link => {
+  preview.querySelectorAll("a").forEach((link) => {
     link.removeAttribute("href");
   });
 
   container.replaceChildren(preview);
 }
 
-async function loadLocalImage(repoPath: string, filePath: string): Promise<string> {
+async function loadLocalImage(
+  repoPath: string,
+  filePath: string,
+): Promise<string> {
   const bytes = await invoke<number[]>("read_image", {
     repoPath,
-    filePath
+    filePath,
   });
 
   const extension = filePath.split(".").pop()?.toLowerCase();
@@ -2688,7 +2734,7 @@ async function loadLocalImage(repoPath: string, filePath: string): Promise<strin
     jpeg: "image/jpeg",
     gif: "image/gif",
     webp: "image/webp",
-    svg: "image/svg+xml"
+    svg: "image/svg+xml",
   };
 
   const mimeType = mimeTypes[extension ?? ""];
@@ -2697,10 +2743,7 @@ async function loadLocalImage(repoPath: string, filePath: string): Promise<strin
     throw new Error("Unsupported image format.");
   }
 
-  const blob = new Blob(
-    [new Uint8Array(bytes)],
-    { type: mimeType }
-  );
+  const blob = new Blob([new Uint8Array(bytes)], { type: mimeType });
 
   return URL.createObjectURL(blob);
 }
@@ -2715,9 +2758,12 @@ function renderImage(url: string, container: HTMLElement): void {
   container.replaceChildren(image);
 }
 
-async function renderPDF(bytes: number[], container: HTMLElement): Promise<void> {
+async function renderPDF(
+  bytes: number[],
+  container: HTMLElement,
+): Promise<void> {
   const loadingTask = pdfjsLib.getDocument({
-    data: new Uint8Array(bytes)
+    data: new Uint8Array(bytes),
   });
 
   const pdf = await loadingTask.promise;
@@ -2749,28 +2795,27 @@ async function renderPDF(bytes: number[], container: HTMLElement): Promise<void>
     await page.render({
       canvas,
       canvasContext: context,
-      viewport
+      viewport,
     }).promise;
   }
 }
 
-async function renderDOCX(bytes: number[], container: HTMLElement, isCurrent: () => boolean): Promise<void> {
+async function renderDOCX(
+  bytes: number[],
+  container: HTMLElement,
+  isCurrent: () => boolean,
+): Promise<void> {
   const viewer = document.createElement("div");
   viewer.className = "docx-viewer";
 
-  await renderAsync(
-    new Uint8Array(bytes),
-    viewer,
-    undefined,
-    {
-      inWrapper: true,
-      breakPages: true,
-      renderHeaders: true,
-      renderFooters: true,
-      renderFootnotes: true,
-      useBase64URL: true
-    }
-  );
+  await renderAsync(new Uint8Array(bytes), viewer, undefined, {
+    inWrapper: true,
+    breakPages: true,
+    renderHeaders: true,
+    renderFooters: true,
+    renderFootnotes: true,
+    useBase64URL: true,
+  });
 
   if (!isCurrent()) return;
 
@@ -2778,7 +2823,6 @@ async function renderDOCX(bytes: number[], container: HTMLElement, isCurrent: ()
 }
 
 function renderUnsupportedFile(filename: string, container: HTMLElement): void {
-
   const message = document.createElement("div");
   message.className = "unsupported-file";
 
@@ -2803,12 +2847,16 @@ function renderUnsupportedFile(filename: string, container: HTMLElement): void {
     icons: { FileQuestionMark },
     attrs: {
       width: 36,
-      height: 36
-    }
+      height: 36,
+    },
   });
 }
 
-function showExplorerContextMenu(event: MouseEvent, entry: TreeEntry, isRoot: boolean): void {
+function showExplorerContextMenu(
+  event: MouseEvent,
+  entry: TreeEntry,
+  isRoot: boolean,
+): void {
   event.preventDefault();
   event.stopPropagation();
 
@@ -2816,10 +2864,11 @@ function showExplorerContextMenu(event: MouseEvent, entry: TreeEntry, isRoot: bo
 
   contextMenuEntry = entry;
   contextMenuIsRoot = isRoot;
-  explorerContextMenu.querySelectorAll<HTMLButtonElement>(
-    '[data-action="rename"], [data-action="move"], [data-action="delete"]'
-  )
-    .forEach(button => {
+  explorerContextMenu
+    .querySelectorAll<HTMLButtonElement>(
+      '[data-action="rename"], [data-action="move"], [data-action="delete"]',
+    )
+    .forEach((button) => {
       button.disabled = isRoot;
     });
 
@@ -2842,7 +2891,7 @@ function hideExplorerContextMenu(): void {
 
 async function createExplorerEntry(
   entry: TreeEntry,
-  isDirectory: boolean
+  isDirectory: boolean,
 ): Promise<void> {
   if (!currentRepoPath) return;
 
@@ -2855,9 +2904,7 @@ async function createExplorerEntry(
     ? entry.path
     : entry.path.replace(/[\\/][^\\/]+$/, "");
 
-  const name = prompt(
-    isDirectory ? "New folder name:" : "New file name:"
-  );
+  const name = prompt(isDirectory ? "New folder name:" : "New file name:");
 
   if (name === null) return;
 
@@ -2923,16 +2970,12 @@ async function deleteExplorerEntry(entry: TreeEntry): Promise<void> {
 
     if (
       selectedFile &&
-      (
-        selectedFile.path === entry.path ||
-        (
-          entry.is_dir &&
+      (selectedFile.path === entry.path ||
+        (entry.is_dir &&
           selectedFile.path.startsWith(
             entry.path.replace(/[\\/]$/, "") +
-            (entry.path.includes("\\") ? "\\" : "/")
-          )
-        )
-      )
+              (entry.path.includes("\\") ? "\\" : "/"),
+          )))
     ) {
       selectedFile = null;
     }
@@ -2958,8 +3001,7 @@ function showDeleteConfirmation(entry: TreeEntry): void {
       `This will also delete ALL files and subfolders inside it, ` +
       `including hidden, ignored, and untracked files.`;
   } else {
-    deleteEntryMessage.textContent =
-      `Permanently delete the file "${entry.name}"?`;
+    deleteEntryMessage.textContent = `Permanently delete the file "${entry.name}"?`;
   }
 
   deleteEntryDialog.showModal();
@@ -2993,16 +3035,12 @@ async function moveExplorerEntry(entry: TreeEntry): Promise<void> {
 
     if (
       selectedFile &&
-      (
-        selectedFile.path === entry.path ||
-        (
-          entry.is_dir &&
+      (selectedFile.path === entry.path ||
+        (entry.is_dir &&
           selectedFile.path.startsWith(
             entry.path.replace(/[\\/]$/, "") +
-            (entry.path.includes("\\") ? "\\" : "/")
-          )
-        )
-      )
+              (entry.path.includes("\\") ? "\\" : "/"),
+          )))
     ) {
       selectedFile = null;
     }
@@ -3015,7 +3053,7 @@ async function moveExplorerEntry(entry: TreeEntry): Promise<void> {
 
 function showInitializeRepositoryDialog(
   path: string,
-  mode: RepositoryInitMode
+  mode: RepositoryInitMode,
 ): void {
   if (
     !initRepositoryDialog ||
@@ -3045,9 +3083,7 @@ function showInitializeRepositoryDialog(
   initRepositoryDialog.showModal();
 }
 
-function showGitExplanation(
-  topic: keyof typeof gitExplanations
-): void {
+function showGitExplanation(topic: keyof typeof gitExplanations): void {
   const explanation = gitExplanations[topic];
 
   currentGuideTopic = topic;
@@ -3057,7 +3093,7 @@ function showGitExplanation(
   const details = document.querySelector<HTMLElement>("#git-guide-details");
   const command = document.querySelector<HTMLElement>("#git-guide-command");
   const commandContainer = document.querySelector<HTMLElement>(
-    "#git-guide-command-container"
+    "#git-guide-command-container",
   );
 
   if (!title || !summary || !details || !command || !commandContainer) return;
@@ -3071,19 +3107,15 @@ function showGitExplanation(
 
   renderGitGuideVisual(explanation.visual);
 
-  document.querySelectorAll<HTMLButtonElement>(".git-guide-topic")
-    .forEach(button => {
-      button.classList.toggle(
-        "active",
-        button.dataset.topic === topic
-      );
+  document
+    .querySelectorAll<HTMLButtonElement>(".git-guide-topic")
+    .forEach((button) => {
+      button.classList.toggle("active", button.dataset.topic === topic);
     });
 }
 
 function renderGitGuideTopics(): void {
-  const container = document.querySelector<HTMLElement>(
-    "#git-guide-topics"
-  );
+  const container = document.querySelector<HTMLElement>("#git-guide-topics");
 
   if (!container) return;
 
@@ -3148,7 +3180,11 @@ function renderGitGuideTopics(): void {
   });
 }
 
-function getGitAreaCounts(): {working: number; staged: number; commits: number | null;} {
+function getGitAreaCounts(): {
+  working: number;
+  staged: number;
+  commits: number | null;
+} {
   const counts = {
     working: 0,
     staged: 0,
@@ -3177,7 +3213,13 @@ function getGitAreaCounts(): {working: number; staged: number; commits: number |
   return counts;
 }
 
-function createGitAreaCard(title: string, description: string, countText: string | null, iconName: string, active = false): HTMLElement {
+function createGitAreaCard(
+  title: string,
+  description: string,
+  countText: string | null,
+  iconName: string,
+  active = false,
+): HTMLElement {
   const card = document.createElement("div");
   card.className = "git-area-card";
 
@@ -3218,7 +3260,11 @@ function createGitAreaCard(title: string, description: string, countText: string
   return card;
 }
 
-function createGitAreaArrow(label: string, active = false, reverse = false): HTMLElement {
+function createGitAreaArrow(
+  label: string,
+  active = false,
+  reverse = false,
+): HTMLElement {
   const arrow = document.createElement("div");
   arrow.className = "git-area-arrow";
   arrow.textContent = label;
@@ -3234,9 +3280,11 @@ function createGitAreaArrow(label: string, active = false, reverse = false): HTM
   return arrow;
 }
 
-function renderGitGuideVisual(visual: import("./gitGuide").GitGuideVisual | undefined): void {
+function renderGitGuideVisual(
+  visual: import("./gitGuide").GitGuideVisual | undefined,
+): void {
   const container = document.querySelector<HTMLElement>(
-    "#git-guide-visual-container"
+    "#git-guide-visual-container",
   );
 
   if (!container) return;
@@ -3257,13 +3305,13 @@ function renderGitGuideVisual(visual: import("./gitGuide").GitGuideVisual | unde
     "Files you are currently editing.",
     currentGuideTree ? `${counts.working} changed` : null,
     "file-pen-line",
-    visual === "working-directory"
+    visual === "working-directory",
   );
 
   const firstArrow = createGitAreaArrow(
     visual === "unstaging" ? "git restore --staged" : "git add",
     visual === "staging-area" || visual === "unstaging",
-    visual === "unstaging"
+    visual === "unstaging",
   );
 
   const stagingCard = createGitAreaCard(
@@ -3271,20 +3319,17 @@ function renderGitGuideVisual(visual: import("./gitGuide").GitGuideVisual | unde
     "The snapshot prepared for your next commit.",
     currentGuideTree ? `${counts.staged} staged` : null,
     "layers",
-    visual === "staging-area" || visual === "unstaging"
+    visual === "staging-area" || visual === "unstaging",
   );
 
-  const secondArrow = createGitAreaArrow(
-    "git commit",
-    visual === "committing"
-  );
+  const secondArrow = createGitAreaArrow("git commit", visual === "committing");
 
   const repositoryCard = createGitAreaCard(
     "Repository",
     "Your saved project history.",
     counts.commits !== null ? `${counts.commits} commits` : null,
     "git-commit-horizontal",
-    visual === "committing"
+    visual === "committing",
   );
 
   visualElement.append(
@@ -3292,7 +3337,7 @@ function renderGitGuideVisual(visual: import("./gitGuide").GitGuideVisual | unde
     firstArrow,
     stagingCard,
     secondArrow,
-    repositoryCard
+    repositoryCard,
   );
 
   container.appendChild(visualElement);
