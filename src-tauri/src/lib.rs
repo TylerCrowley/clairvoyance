@@ -1,4 +1,5 @@
-// Rust libraries
+// -- Imports --
+
 use git2::{
     build::CheckoutBuilder,
     BranchType,
@@ -19,18 +20,12 @@ use git2::{
 };
 use serde::Serialize;
 use std::collections::{ HashMap, HashSet };
-use std::fs;
 use std::path::{ Path, PathBuf };
+use std::fs;
 
-#[derive(Serialize, Clone)]
-// Moved Git status into it's own data type
-struct GitFileStatus {
-    staged: Option<String>,
-    unstaged: Option<String>,
-}
+// -- Data Structures --
 
 #[derive(Serialize)]
-// Data structure for each entry in the file tree
 struct TreeEntry {
     name: String,
     path: String,
@@ -38,24 +33,6 @@ struct TreeEntry {
     unreadable: bool,
     status: Option<GitFileStatus>,
     children: Vec<TreeEntry>,
-}
-
-#[derive(Serialize)]
-// Used to track the changes made to a file, when displayed
-struct FileDiffLine {
-    old_line_number: Option<u32>,
-    new_line_number: Option<u32>,
-    line_type: String,
-    content: String,
-}
-
-#[derive(Serialize)]
-struct CommitInfo {
-    hash: String,
-    message: String,
-    author: String,
-    timestamp: i64,
-    parents: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -69,10 +46,12 @@ struct RepositorySummary {
 }
 
 #[derive(Serialize)]
-struct BranchInfo {
-    name: String,
-    is_current: bool,
-    commit_hash: Option<String>,
+struct CommitInfo {
+    hash: String,
+    message: String,
+    author: String,
+    timestamp: i64,
+    parents: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -89,7 +68,115 @@ struct ActivityCommit {
     author: String,
 }
 
-// Reads the directory and creates the file tree structure
+#[derive(Serialize, Clone)]
+struct GitFileStatus {
+    staged: Option<String>,
+    unstaged: Option<String>,
+}
+
+#[derive(Serialize)]
+struct FileDiffLine {
+    old_line_number: Option<u32>,
+    new_line_number: Option<u32>,
+    line_type: String,
+    content: String,
+}
+
+#[derive(Serialize)]
+struct BranchInfo {
+    name: String,
+    is_current: bool,
+    commit_hash: Option<String>,
+}
+
+// -- Validation & Initialization --
+
+#[tauri::command]
+fn is_git_repository(path: String) -> Result<bool, String> {
+    let directory = std::path::Path
+        ::new(&path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+
+    if !directory.is_dir() {
+        return Err("Selected path is not a directory.".into());
+    }
+
+    match Repository::open(&directory) {
+        Ok(repo) => {
+            let workdir = match repo.workdir() {
+                Some(path) => path,
+                None => {
+                    return Ok(false);
+                }
+            };
+
+            Ok(workdir.canonicalize().map_err(|e| e.to_string())? == directory)
+        }
+        Err(error) if error.code() == ErrorCode::NotFound => Ok(false),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+#[tauri::command]
+fn initialize_repository(
+    parent_path: String,
+    new_name: Option<String>,
+    initial_branch: String
+) -> Result<String, String> {
+    let parent = Path::new(&parent_path)
+        .canonicalize()
+        .map_err(|e| format!("Invalid directory: {e}"))?;
+
+    if !parent.is_dir() {
+        return Err("The selected location is not a directory.".into());
+    }
+
+    let valid_branch = Branch::name_is_valid(&initial_branch).map_err(|e| e.to_string())?;
+
+    if !valid_branch {
+        return Err("Invalid Git branch name.".into());
+    }
+
+    if Repository::discover(&parent).is_ok() {
+        return Err("The selected directory is already inside a Git repository.".into());
+    }
+
+    let target = if let Some(name) = new_name {
+        if
+            name.is_empty() ||
+            name == "." ||
+            name == ".." ||
+            name.contains('/') ||
+            name.contains('\\') ||
+            name.contains('\0') ||
+            name.eq_ignore_ascii_case(".git")
+        {
+            return Err("Invalid repository name.".into());
+        }
+
+        let path = parent.join(name);
+
+        fs::create_dir(&path).map_err(|e| format!("Cannot create repository folder: {e}"))?;
+
+        path
+    } else {
+        parent
+    };
+
+    let mut options = RepositoryInitOptions::new();
+
+    options.bare(false).no_reinit(true).initial_head(&initial_branch);
+
+    Repository::init_opts(&target, &options).map_err(|e|
+        format!("Failed to initialize repository: {e}")
+    )?;
+
+    Ok(target.to_string_lossy().into_owned())
+}
+
+// -- File Tree & Status --
+
 fn build_tree(
     path: &Path,
     repo_root: &Path,
@@ -199,7 +286,6 @@ fn get_repository_tree(path: String, show_hidden: bool) -> Result<TreeEntry, Str
     Ok(build_tree(root, root, &statuses, show_hidden))
 }
 
-// Creates a hash map of the statuses of each file in the repository, this seemed much faster than grabbing each one individually
 fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, GitFileStatus>, String> {
     let mut options = StatusOptions::new();
 
@@ -255,8 +341,9 @@ fn get_repository_statuses(repo: &Repository) -> Result<HashMap<String, GitFileS
     Ok(result)
 }
 
+// -- Reading & Writing --
+
 #[tauri::command]
-// Reads the file content
 fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
     let repo_root = fs::canonicalize(&repo_path).map_err(|error| error.to_string())?;
 
@@ -284,7 +371,449 @@ fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-// Stages the changes in a file
+fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir().ok_or("Cannot read files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&file_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) {
+        return Err("Cannot read images outside the repository.".to_string());
+    }
+
+    if !resolved.is_file() {
+        return Err("The selected path is not a file.".to_string());
+    }
+
+    let extension = resolved
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if !["png", "jpg", "jpeg", "gif", "webp", "svg"].contains(&extension.as_str()) {
+        return Err("Unsupported image format.".to_string());
+    }
+
+    let metadata = fs::metadata(&resolved).map_err(|error| error.to_string())?;
+
+    if metadata.len() > 20 * 1024 * 1024 {
+        return Err("Image exceeds the 20 MiB size limit.".to_string());
+    }
+
+    fs::read(&resolved).map_err(|error| format!("Failed to read image: {error}"))
+}
+
+#[tauri::command]
+fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir().ok_or("Cannot read files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = std::path::Path::new(&file_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) {
+        return Err("File is outside the selected repository.".to_string());
+    }
+
+    if !resolved.is_file() {
+        return Err("Selected path is not a regular file.".to_string());
+    }
+
+    let extension = resolved
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if !["pdf", "docx"].contains(&extension.as_str()) {
+        return Err("Unsupported document format.".to_string());
+    }
+
+    let metadata = fs::metadata(&resolved).map_err(|error| error.to_string())?;
+
+    if metadata.len() > 20 * 1024 * 1024 {
+        return Err("Document exceeds the 20 MiB limit.".to_string());
+    }
+
+    fs::read(&resolved).map_err(|error| format!("Failed to read document: {error}"))
+}
+
+#[tauri::command]
+fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(), String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir().ok_or("Cannot edit files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&file_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let resolved = target.canonicalize().map_err(|error| format!("Invalid file path: {error}"))?;
+
+    if !resolved.starts_with(&repo_root) {
+        return Err("Cannot save files outside the selected repository.".to_string());
+    }
+
+    if !resolved.is_file() {
+        return Err("The selected path is not a regular file.".to_string());
+    }
+
+    fs::write(&resolved, contents).map_err(|error| format!("Failed to save file: {error}"))?;
+
+    Ok(())
+}
+
+// -- Filesystem Management & Safety --
+
+#[tauri::command]
+fn create_entry(
+    repo_path: String,
+    parent_path: String,
+    name: String,
+    is_directory: bool
+) -> Result<(), String> {
+    if
+        name.is_empty() ||
+        name == "." ||
+        name == ".." ||
+        name.contains('/') ||
+        name.contains('\\') ||
+        name.contains('\0') ||
+        name.eq_ignore_ascii_case(".git")
+    {
+        return Err("Invalid file or folder name.".to_string());
+    }
+
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir().ok_or("Cannot create files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_parent = Path::new(&parent_path);
+
+    let parent = if supplied_parent.is_absolute() {
+        supplied_parent.to_path_buf()
+    } else {
+        repo_root.join(supplied_parent)
+    };
+
+    let resolved_parent = parent.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved_parent.starts_with(&repo_root) {
+        return Err("Cannot create entries outside the repository.".into());
+    }
+
+    if !resolved_parent.is_dir() {
+        return Err("The selected parent is not a directory.".into());
+    }
+
+    let relative_parent = resolved_parent
+        .strip_prefix(&repo_root)
+        .map_err(|error| error.to_string())?;
+
+    if
+        relative_parent
+            .components()
+            .any(|component| {
+                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+            })
+    {
+        return Err("Cannot modify Git metadata.".into());
+    }
+
+    let target = resolved_parent.join(&name);
+
+    if is_directory {
+        fs::create_dir(&target).map_err(|error| format!("Failed to create folder: {error}"))?;
+    } else {
+        fs::OpenOptions
+            ::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+            .map_err(|error| format!("Failed to create file: {error}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_entry(repo_path: String, entry_path: String) -> Result<(), String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir().ok_or("Cannot delete files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&entry_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let metadata = fs::symlink_metadata(&target).map_err(|error| error.to_string())?;
+
+    if metadata.file_type().is_symlink() {
+        return Err("Deleting symbolic links is not supported.".into());
+    }
+
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) || resolved == repo_root {
+        return Err("Cannot delete this path.".into());
+    }
+
+    let relative_path = resolved.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
+
+    if
+        relative_path
+            .components()
+            .any(|component| {
+                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+            })
+    {
+        return Err("Cannot modify Git metadata.".into());
+    }
+
+    if metadata.is_dir() && contains_git_metadata(&resolved)? {
+        return Err("This directory contains Git metadata and cannot be deleted.".into());
+    }
+
+    if metadata.is_dir() {
+        fs
+            ::remove_dir_all(&resolved)
+            .map_err(|error| format!("Failed to delete directory: {error}"))?;
+    } else if metadata.is_file() {
+        fs::remove_file(&resolved).map_err(|error| format!("Failed to delete file: {error}"))?;
+    } else {
+        return Err("Unsupported filesystem entry.".into());
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn rename_entry(repo_path: String, entry_path: String, new_name: String) -> Result<(), String> {
+    if
+        new_name.is_empty() ||
+        new_name == "." ||
+        new_name == ".." ||
+        new_name.contains('/') ||
+        new_name.contains('\\') ||
+        new_name.contains('\0') ||
+        new_name.eq_ignore_ascii_case(".git")
+    {
+        return Err("Invalid file or folder name.".into());
+    }
+
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir().ok_or("Cannot rename entries in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let supplied_path = Path::new(&entry_path);
+
+    let target = if supplied_path.is_absolute() {
+        supplied_path.to_path_buf()
+    } else {
+        repo_root.join(supplied_path)
+    };
+
+    let metadata = fs::symlink_metadata(&target).map_err(|error| error.to_string())?;
+
+    if metadata.file_type().is_symlink() {
+        return Err("Renaming symbolic links is not supported.".into());
+    }
+
+    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
+
+    if !resolved.starts_with(&repo_root) || resolved == repo_root {
+        return Err("Cannot rename this path.".into());
+    }
+
+    let relative_path = resolved.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
+
+    if
+        relative_path
+            .components()
+            .any(|component| {
+                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+            })
+    {
+        return Err("Cannot modify Git metadata.".into());
+    }
+
+    let parent = resolved.parent().ok_or("Could not determine the parent directory.")?;
+
+    let destination = parent.join(&new_name);
+
+    if destination == resolved {
+        return Ok(());
+    }
+
+    if fs::symlink_metadata(&destination).is_ok() {
+        return Err("A file or folder with that name already exists.".into());
+    }
+
+    fs
+        ::rename(&resolved, &destination)
+        .map_err(|error| format!("Failed to rename entry: {error}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn move_entry(
+    repo_path: String,
+    entry_path: String,
+    destination_path: String
+) -> Result<(), String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let workdir = repo.workdir().ok_or("Cannot move files in a bare repository.")?;
+
+    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+
+    let resolve = |path: &str| -> Result<PathBuf, String> {
+        let supplied = Path::new(path);
+
+        let target = if supplied.is_absolute() {
+            supplied.to_path_buf()
+        } else {
+            repo_root.join(supplied)
+        };
+
+        target.canonicalize().map_err(|error| error.to_string())
+    };
+
+    let source = resolve(&entry_path)?;
+    let destination_dir = resolve(&destination_path)?;
+
+    if !source.starts_with(&repo_root) || !destination_dir.starts_with(&repo_root) {
+        return Err("Cannot move files outside the repository.".into());
+    }
+
+    if source == repo_root {
+        return Err("Cannot move the repository root.".into());
+    }
+
+    for path in [&source, &destination_dir] {
+        let relative = path.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
+
+        if
+            relative
+                .components()
+                .any(|component| {
+                    component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
+                })
+        {
+            return Err("Cannot modify Git metadata.".into());
+        }
+    }
+
+    let supplied_source = Path::new(&entry_path);
+
+    let original_source = if supplied_source.is_absolute() {
+        supplied_source.to_path_buf()
+    } else {
+        repo_root.join(supplied_source)
+    };
+
+    let metadata = fs::symlink_metadata(&original_source).map_err(|error| error.to_string())?;
+
+    if metadata.file_type().is_symlink() {
+        return Err("Moving symbolic links is not supported.".into());
+    }
+
+    if !metadata.is_file() && !metadata.is_dir() {
+        return Err("Unsupported filesystem entry.".into());
+    }
+
+    if !destination_dir.is_dir() {
+        return Err("Destination must be a directory.".into());
+    }
+
+    if metadata.is_dir() && destination_dir.starts_with(&source) {
+        return Err("Cannot move a folder inside itself.".into());
+    }
+
+    if metadata.is_dir() && contains_git_metadata(&source)? {
+        return Err("Cannot move a directory containing Git metadata.".into());
+    }
+
+    let filename = source.file_name().ok_or("Could not determine the entry name.")?;
+
+    let destination = destination_dir.join(filename);
+
+    if destination == source {
+        return Ok(());
+    }
+
+    if fs::symlink_metadata(&destination).is_ok() {
+        return Err("A file or folder with that name already exists in the destination.".into());
+    }
+
+    fs::rename(&source, &destination).map_err(|error| format!("Failed to move entry: {error}"))?;
+
+    Ok(())
+}
+
+fn contains_git_metadata(path: &Path) -> Result<bool, String> {
+    if !path.is_dir() {
+        return Ok(false);
+    }
+
+    for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+
+        if entry.file_name().to_string_lossy() == ".git" {
+            return Ok(true);
+        }
+
+        let metadata = fs::symlink_metadata(entry.path()).map_err(|e| e.to_string())?;
+
+        if metadata.is_dir() && contains_git_metadata(&entry.path())? {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+// -- Git Staging & File Changes --
+
+#[tauri::command]
 fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
@@ -306,7 +835,6 @@ fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-// Unstages changes in a file that have already been staged
 fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
@@ -346,40 +874,6 @@ fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-// Creates a git commit for the current changes, either all of them or just staged changes
-fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Result<String, String> {
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let mut index = repo.index().map_err(|error| error.to_string())?;
-
-    if commit_all {
-        index.add_all(["*"], IndexAddOption::DEFAULT, None).map_err(|error| error.to_string())?;
-
-        index.update_all(["*"], None).map_err(|error| error.to_string())?;
-
-        index.write().map_err(|error| error.to_string())?;
-    }
-
-    let tree_oid = index.write_tree().map_err(|error| error.to_string())?;
-
-    let tree = repo.find_tree(tree_oid).map_err(|error| error.to_string())?;
-
-    let signature = repo.signature().map_err(|error| error.to_string())?;
-
-    let parent = repo
-        .head()
-        .map_err(|error| error.to_string())?
-        .peel_to_commit()
-        .map_err(|error| error.to_string())?;
-
-    let commit_oid = repo
-        .commit(Some("HEAD"), &signature, &signature, &message, &tree, &[&parent])
-        .map_err(|error| error.to_string())?;
-    Ok(commit_oid.to_string())
-}
-
-#[tauri::command]
-// Goes through each line of the file and tracks differences compared to the commited version
 fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLine>, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
@@ -450,6 +944,40 @@ fn get_file_diff(repo_path: String, file_path: String) -> Result<Vec<FileDiffLin
     Ok(lines)
 }
 
+// -- Git Commits & History --
+
+#[tauri::command]
+fn commit_changes(repo_path: String, message: String, commit_all: bool) -> Result<String, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let mut index = repo.index().map_err(|error| error.to_string())?;
+
+    if commit_all {
+        index.add_all(["*"], IndexAddOption::DEFAULT, None).map_err(|error| error.to_string())?;
+
+        index.update_all(["*"], None).map_err(|error| error.to_string())?;
+
+        index.write().map_err(|error| error.to_string())?;
+    }
+
+    let tree_oid = index.write_tree().map_err(|error| error.to_string())?;
+
+    let tree = repo.find_tree(tree_oid).map_err(|error| error.to_string())?;
+
+    let signature = repo.signature().map_err(|error| error.to_string())?;
+
+    let parent = repo
+        .head()
+        .map_err(|error| error.to_string())?
+        .peel_to_commit()
+        .map_err(|error| error.to_string())?;
+
+    let commit_oid = repo
+        .commit(Some("HEAD"), &signature, &signature, &message, &tree, &[&parent])
+        .map_err(|error| error.to_string())?;
+    Ok(commit_oid.to_string())
+}
+
 #[tauri::command]
 fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
@@ -483,121 +1011,6 @@ fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
     }
 
     Ok(commits)
-}
-
-#[tauri::command]
-fn get_repository_summary(repo_path: String) -> Result<RepositorySummary, String> {
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let head_commit = match repo.head() {
-        Ok(head) => Some(head.peel_to_commit().map_err(|error| error.to_string())?),
-        Err(error) if matches!(error.code(), ErrorCode::UnbornBranch | ErrorCode::NotFound) => {
-            None
-        }
-        Err(error) => {
-            return Err(error.to_string());
-        }
-    };
-
-    let current_branch = match repo.head() {
-        Ok(head) if head.is_branch() =>
-            Some(
-                head
-                    .shorthand()
-                    .map_err(|error| error.to_string())?
-                    .to_string()
-            ),
-        Ok(_) => None, // Detached HEAD
-        Err(error) if error.code() == ErrorCode::UnbornBranch => None,
-        Err(error) => {
-            return Err(error.to_string());
-        }
-    };
-
-    let statuses = get_repository_statuses(&repo)?;
-
-    let branches = repo.branches(Some(BranchType::Local)).map_err(|error| error.to_string())?;
-    let branch_count = branches
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?
-        .len();
-
-    let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
-    revwalk.push_head().map_err(|error| error.to_string())?;
-    let mut total_commits = 0;
-    let mut contributors = HashSet::new();
-    if let Some(ref commit) = head_commit {
-        let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
-        revwalk.push(commit.id()).map_err(|error| error.to_string())?;
-
-        for oid_result in revwalk {
-            let oid = oid_result.map_err(|error| error.to_string())?;
-            let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
-            total_commits += 1;
-            let author = commit.author();
-            if let Ok(email) = author.email() {
-                contributors.insert(email.to_string());
-            }
-        }
-    }
-    let contributor_count = contributors.len();
-
-    let latest_commit = match repo.head() {
-        Ok(head) => {
-            let commit = head.peel_to_commit().map_err(|error| error.to_string())?;
-
-            Some(commit.id().to_string())
-        }
-        Err(error) if error.code() == ErrorCode::UnbornBranch => None,
-        Err(error) => {
-            return Err(error.to_string());
-        }
-    };
-
-    let summary = RepositorySummary {
-        current_branch: current_branch,
-        changed_files: statuses.len(),
-        total_commits: total_commits,
-        branch_count: branch_count,
-        contributor_count: contributor_count,
-        latest_commit: latest_commit,
-    };
-
-    Ok(summary)
-}
-
-#[tauri::command]
-fn get_local_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let mut branches = Vec::new();
-
-    let iterator = repo.branches(Some(BranchType::Local)).map_err(|error| error.to_string())?;
-
-    for branch_result in iterator {
-        let (branch, _) = branch_result.map_err(|error| error.to_string())?;
-
-        let name = branch
-            .name()
-            .map_err(|error| error.to_string())?
-            .unwrap_or("Unknown")
-            .to_string();
-
-        let is_current = branch.is_head();
-
-        let commit_hash = branch
-            .get()
-            .target()
-            .map(|oid| oid.to_string());
-
-        branches.push(BranchInfo {
-            name,
-            is_current,
-            commit_hash,
-        });
-    }
-
-    Ok(branches)
 }
 
 #[tauri::command]
@@ -665,6 +1078,42 @@ fn get_commit_file_changes(
     Ok(changes)
 }
 
+// -- Git Branches --
+
+#[tauri::command]
+fn get_local_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
+    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
+
+    let mut branches = Vec::new();
+
+    let iterator = repo.branches(Some(BranchType::Local)).map_err(|error| error.to_string())?;
+
+    for branch_result in iterator {
+        let (branch, _) = branch_result.map_err(|error| error.to_string())?;
+
+        let name = branch
+            .name()
+            .map_err(|error| error.to_string())?
+            .unwrap_or("Unknown")
+            .to_string();
+
+        let is_current = branch.is_head();
+
+        let commit_hash = branch
+            .get()
+            .target()
+            .map(|oid| oid.to_string());
+
+        branches.push(BranchInfo {
+            name,
+            is_current,
+            commit_hash,
+        });
+    }
+
+    Ok(branches)
+}
+
 #[tauri::command]
 fn switch_branch(repo_path: String, branch_name: String) -> Result<(), String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
@@ -717,61 +1166,6 @@ fn switch_branch(repo_path: String, branch_name: String) -> Result<(), String> {
     repo.set_head(&reference_name).map_err(|error| error.to_string())?;
 
     Ok(())
-}
-
-#[tauri::command]
-fn get_repository_activity(repo_path: String) -> Result<Vec<ActivityCommit>, String> {
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
-
-    let now = std::time::SystemTime
-        ::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|error| error.to_string())?
-        .as_secs() as i64;
-
-    let cutoff = now - 91 * 24 * 60 * 60;
-
-    let references = repo.references().map_err(|error| error.to_string())?;
-
-    for reference in references {
-        let reference = reference.map_err(|error| error.to_string())?;
-
-        let name = reference.name().unwrap_or("");
-
-        if !name.starts_with("refs/heads/") && !name.starts_with("refs/remotes/") {
-            continue;
-        }
-
-        if reference.kind() == Some(ReferenceType::Symbolic) {
-            continue;
-        }
-
-        let commit = reference.peel_to_commit().map_err(|error| error.to_string())?;
-
-        revwalk.push(commit.id()).map_err(|error| error.to_string())?;
-    }
-
-    let mut activity = Vec::new();
-
-    for oid_result in revwalk {
-        let oid = oid_result.map_err(|error| error.to_string())?;
-
-        let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
-
-        let timestamp = commit.time().seconds();
-
-        if timestamp < cutoff || timestamp > now {
-            continue;
-        }
-
-        let author = commit.author().name().unwrap_or("Unknown").to_string();
-
-        activity.push(ActivityCommit { timestamp, author });
-    }
-
-    Ok(activity)
 }
 
 #[tauri::command]
@@ -951,528 +1345,145 @@ fn merge_branches(
     Ok(format!("Successfully merged {source_branch} into {target_branch}."))
 }
 
-#[tauri::command]
-fn save_file(repo_path: String, file_path: String, contents: String) -> Result<(), String> {
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let workdir = repo.workdir().ok_or("Cannot edit files in a bare repository.")?;
-
-    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
-
-    let supplied_path = Path::new(&file_path);
-
-    let target = if supplied_path.is_absolute() {
-        supplied_path.to_path_buf()
-    } else {
-        repo_root.join(supplied_path)
-    };
-
-    let resolved = target.canonicalize().map_err(|error| format!("Invalid file path: {error}"))?;
-
-    if !resolved.starts_with(&repo_root) {
-        return Err("Cannot save files outside the selected repository.".to_string());
-    }
-
-    if !resolved.is_file() {
-        return Err("The selected path is not a regular file.".to_string());
-    }
-
-    fs::write(&resolved, contents).map_err(|error| format!("Failed to save file: {error}"))?;
-
-    Ok(())
-}
+// -- Repository Information --
 
 #[tauri::command]
-fn read_image(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
+fn get_repository_summary(repo_path: String) -> Result<RepositorySummary, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo.workdir().ok_or("Cannot read files in a bare repository.")?;
-
-    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
-
-    let supplied_path = Path::new(&file_path);
-
-    let target = if supplied_path.is_absolute() {
-        supplied_path.to_path_buf()
-    } else {
-        repo_root.join(supplied_path)
-    };
-
-    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
-
-    if !resolved.starts_with(&repo_root) {
-        return Err("Cannot read images outside the repository.".to_string());
-    }
-
-    if !resolved.is_file() {
-        return Err("The selected path is not a file.".to_string());
-    }
-
-    let extension = resolved
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-
-    if !["png", "jpg", "jpeg", "gif", "webp", "svg"].contains(&extension.as_str()) {
-        return Err("Unsupported image format.".to_string());
-    }
-
-    let metadata = fs::metadata(&resolved).map_err(|error| error.to_string())?;
-
-    if metadata.len() > 20 * 1024 * 1024 {
-        return Err("Image exceeds the 20 MiB size limit.".to_string());
-    }
-
-    fs::read(&resolved).map_err(|error| format!("Failed to read image: {error}"))
-}
-
-#[tauri::command]
-fn read_document(repo_path: String, file_path: String) -> Result<Vec<u8>, String> {
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let workdir = repo.workdir().ok_or("Cannot read files in a bare repository.")?;
-
-    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
-
-    let supplied_path = std::path::Path::new(&file_path);
-
-    let target = if supplied_path.is_absolute() {
-        supplied_path.to_path_buf()
-    } else {
-        repo_root.join(supplied_path)
-    };
-
-    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
-
-    if !resolved.starts_with(&repo_root) {
-        return Err("File is outside the selected repository.".to_string());
-    }
-
-    if !resolved.is_file() {
-        return Err("Selected path is not a regular file.".to_string());
-    }
-
-    let extension = resolved
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-
-    if !["pdf", "docx"].contains(&extension.as_str()) {
-        return Err("Unsupported document format.".to_string());
-    }
-
-    let metadata = fs::metadata(&resolved).map_err(|error| error.to_string())?;
-
-    if metadata.len() > 20 * 1024 * 1024 {
-        return Err("Document exceeds the 20 MiB limit.".to_string());
-    }
-
-    fs::read(&resolved).map_err(|error| format!("Failed to read document: {error}"))
-}
-
-#[tauri::command]
-fn create_entry(
-    repo_path: String,
-    parent_path: String,
-    name: String,
-    is_directory: bool
-) -> Result<(), String> {
-    if
-        name.is_empty() ||
-        name == "." ||
-        name == ".." ||
-        name.contains('/') ||
-        name.contains('\\') ||
-        name.contains('\0') ||
-        name.eq_ignore_ascii_case(".git")
-    {
-        return Err("Invalid file or folder name.".to_string());
-    }
-
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let workdir = repo.workdir().ok_or("Cannot create files in a bare repository.")?;
-
-    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
-
-    let supplied_parent = Path::new(&parent_path);
-
-    let parent = if supplied_parent.is_absolute() {
-        supplied_parent.to_path_buf()
-    } else {
-        repo_root.join(supplied_parent)
-    };
-
-    let resolved_parent = parent.canonicalize().map_err(|error| error.to_string())?;
-
-    if !resolved_parent.starts_with(&repo_root) {
-        return Err("Cannot create entries outside the repository.".into());
-    }
-
-    if !resolved_parent.is_dir() {
-        return Err("The selected parent is not a directory.".into());
-    }
-
-    let relative_parent = resolved_parent
-        .strip_prefix(&repo_root)
-        .map_err(|error| error.to_string())?;
-
-    if
-        relative_parent
-            .components()
-            .any(|component| {
-                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
-            })
-    {
-        return Err("Cannot modify Git metadata.".into());
-    }
-
-    let target = resolved_parent.join(&name);
-
-    if is_directory {
-        fs::create_dir(&target).map_err(|error| format!("Failed to create folder: {error}"))?;
-    } else {
-        fs::OpenOptions
-            ::new()
-            .write(true)
-            .create_new(true)
-            .open(&target)
-            .map_err(|error| format!("Failed to create file: {error}"))?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn rename_entry(repo_path: String, entry_path: String, new_name: String) -> Result<(), String> {
-    if
-        new_name.is_empty() ||
-        new_name == "." ||
-        new_name == ".." ||
-        new_name.contains('/') ||
-        new_name.contains('\\') ||
-        new_name.contains('\0') ||
-        new_name.eq_ignore_ascii_case(".git")
-    {
-        return Err("Invalid file or folder name.".into());
-    }
-
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let workdir = repo.workdir().ok_or("Cannot rename entries in a bare repository.")?;
-
-    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
-
-    let supplied_path = Path::new(&entry_path);
-
-    let target = if supplied_path.is_absolute() {
-        supplied_path.to_path_buf()
-    } else {
-        repo_root.join(supplied_path)
-    };
-
-    let metadata = fs::symlink_metadata(&target).map_err(|error| error.to_string())?;
-
-    if metadata.file_type().is_symlink() {
-        return Err("Renaming symbolic links is not supported.".into());
-    }
-
-    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
-
-    if !resolved.starts_with(&repo_root) || resolved == repo_root {
-        return Err("Cannot rename this path.".into());
-    }
-
-    let relative_path = resolved.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
-
-    if
-        relative_path
-            .components()
-            .any(|component| {
-                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
-            })
-    {
-        return Err("Cannot modify Git metadata.".into());
-    }
-
-    let parent = resolved.parent().ok_or("Could not determine the parent directory.")?;
-
-    let destination = parent.join(&new_name);
-
-    if destination == resolved {
-        return Ok(());
-    }
-
-    if fs::symlink_metadata(&destination).is_ok() {
-        return Err("A file or folder with that name already exists.".into());
-    }
-
-    fs
-        ::rename(&resolved, &destination)
-        .map_err(|error| format!("Failed to rename entry: {error}"))?;
-
-    Ok(())
-}
-
-#[tauri::command]
-fn delete_entry(repo_path: String, entry_path: String) -> Result<(), String> {
-    let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
-
-    let workdir = repo.workdir().ok_or("Cannot delete files in a bare repository.")?;
-
-    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
-
-    let supplied_path = Path::new(&entry_path);
-
-    let target = if supplied_path.is_absolute() {
-        supplied_path.to_path_buf()
-    } else {
-        repo_root.join(supplied_path)
-    };
-
-    let metadata = fs::symlink_metadata(&target).map_err(|error| error.to_string())?;
-
-    if metadata.file_type().is_symlink() {
-        return Err("Deleting symbolic links is not supported.".into());
-    }
-
-    let resolved = target.canonicalize().map_err(|error| error.to_string())?;
-
-    if !resolved.starts_with(&repo_root) || resolved == repo_root {
-        return Err("Cannot delete this path.".into());
-    }
-
-    let relative_path = resolved.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
-
-    if
-        relative_path
-            .components()
-            .any(|component| {
-                component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
-            })
-    {
-        return Err("Cannot modify Git metadata.".into());
-    }
-
-    if metadata.is_dir() && contains_git_metadata(&resolved)? {
-        return Err("This directory contains Git metadata and cannot be deleted.".into());
-    }
-
-    if metadata.is_dir() {
-        fs
-            ::remove_dir_all(&resolved)
-            .map_err(|error| format!("Failed to delete directory: {error}"))?;
-    } else if metadata.is_file() {
-        fs::remove_file(&resolved).map_err(|error| format!("Failed to delete file: {error}"))?;
-    } else {
-        return Err("Unsupported filesystem entry.".into());
-    }
-
-    Ok(())
-}
-
-fn contains_git_metadata(path: &Path) -> Result<bool, String> {
-    if !path.is_dir() {
-        return Ok(false);
-    }
-
-    for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-
-        if entry.file_name().to_string_lossy() == ".git" {
-            return Ok(true);
+    let head_commit = match repo.head() {
+        Ok(head) => Some(head.peel_to_commit().map_err(|error| error.to_string())?),
+        Err(error) if matches!(error.code(), ErrorCode::UnbornBranch | ErrorCode::NotFound) => {
+            None
         }
+        Err(error) => {
+            return Err(error.to_string());
+        }
+    };
 
-        let metadata = fs::symlink_metadata(entry.path()).map_err(|e| e.to_string())?;
+    let current_branch = match repo.head() {
+        Ok(head) if head.is_branch() =>
+            Some(
+                head
+                    .shorthand()
+                    .map_err(|error| error.to_string())?
+                    .to_string()
+            ),
+        Ok(_) => None, // Detached HEAD
+        Err(error) if error.code() == ErrorCode::UnbornBranch => None,
+        Err(error) => {
+            return Err(error.to_string());
+        }
+    };
 
-        if metadata.is_dir() && contains_git_metadata(&entry.path())? {
-            return Ok(true);
+    let statuses = get_repository_statuses(&repo)?;
+
+    let branches = repo.branches(Some(BranchType::Local)).map_err(|error| error.to_string())?;
+    let branch_count = branches
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?
+        .len();
+
+    let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
+    revwalk.push_head().map_err(|error| error.to_string())?;
+    let mut total_commits = 0;
+    let mut contributors = HashSet::new();
+    if let Some(ref commit) = head_commit {
+        let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
+        revwalk.push(commit.id()).map_err(|error| error.to_string())?;
+
+        for oid_result in revwalk {
+            let oid = oid_result.map_err(|error| error.to_string())?;
+            let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
+            total_commits += 1;
+            let author = commit.author();
+            if let Ok(email) = author.email() {
+                contributors.insert(email.to_string());
+            }
         }
     }
+    let contributor_count = contributors.len();
 
-    Ok(false)
+    let latest_commit = match repo.head() {
+        Ok(head) => {
+            let commit = head.peel_to_commit().map_err(|error| error.to_string())?;
+
+            Some(commit.id().to_string())
+        }
+        Err(error) if error.code() == ErrorCode::UnbornBranch => None,
+        Err(error) => {
+            return Err(error.to_string());
+        }
+    };
+
+    let summary = RepositorySummary {
+        current_branch: current_branch,
+        changed_files: statuses.len(),
+        total_commits: total_commits,
+        branch_count: branch_count,
+        contributor_count: contributor_count,
+        latest_commit: latest_commit,
+    };
+
+    Ok(summary)
 }
 
 #[tauri::command]
-fn move_entry(
-    repo_path: String,
-    entry_path: String,
-    destination_path: String
-) -> Result<(), String> {
+fn get_repository_activity(repo_path: String) -> Result<Vec<ActivityCommit>, String> {
     let repo = Repository::open(&repo_path).map_err(|error| error.to_string())?;
 
-    let workdir = repo.workdir().ok_or("Cannot move files in a bare repository.")?;
+    let mut revwalk = repo.revwalk().map_err(|error| error.to_string())?;
 
-    let repo_root = workdir.canonicalize().map_err(|error| error.to_string())?;
+    let now = std::time::SystemTime
+        ::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_secs() as i64;
 
-    let resolve = |path: &str| -> Result<PathBuf, String> {
-        let supplied = Path::new(path);
+    let cutoff = now - 91 * 24 * 60 * 60;
 
-        let target = if supplied.is_absolute() {
-            supplied.to_path_buf()
-        } else {
-            repo_root.join(supplied)
-        };
+    let references = repo.references().map_err(|error| error.to_string())?;
 
-        target.canonicalize().map_err(|error| error.to_string())
-    };
+    for reference in references {
+        let reference = reference.map_err(|error| error.to_string())?;
 
-    let source = resolve(&entry_path)?;
-    let destination_dir = resolve(&destination_path)?;
+        let name = reference.name().unwrap_or("");
 
-    if !source.starts_with(&repo_root) || !destination_dir.starts_with(&repo_root) {
-        return Err("Cannot move files outside the repository.".into());
-    }
-
-    if source == repo_root {
-        return Err("Cannot move the repository root.".into());
-    }
-
-    for path in [&source, &destination_dir] {
-        let relative = path.strip_prefix(&repo_root).map_err(|error| error.to_string())?;
-
-        if
-            relative
-                .components()
-                .any(|component| {
-                    component.as_os_str().to_string_lossy().eq_ignore_ascii_case(".git")
-                })
-        {
-            return Err("Cannot modify Git metadata.".into());
-        }
-    }
-
-    let supplied_source = Path::new(&entry_path);
-
-    let original_source = if supplied_source.is_absolute() {
-        supplied_source.to_path_buf()
-    } else {
-        repo_root.join(supplied_source)
-    };
-
-    let metadata = fs::symlink_metadata(&original_source).map_err(|error| error.to_string())?;
-
-    if metadata.file_type().is_symlink() {
-        return Err("Moving symbolic links is not supported.".into());
-    }
-
-    if !metadata.is_file() && !metadata.is_dir() {
-        return Err("Unsupported filesystem entry.".into());
-    }
-
-    if !destination_dir.is_dir() {
-        return Err("Destination must be a directory.".into());
-    }
-
-    if metadata.is_dir() && destination_dir.starts_with(&source) {
-        return Err("Cannot move a folder inside itself.".into());
-    }
-
-    if metadata.is_dir() && contains_git_metadata(&source)? {
-        return Err("Cannot move a directory containing Git metadata.".into());
-    }
-
-    let filename = source.file_name().ok_or("Could not determine the entry name.")?;
-
-    let destination = destination_dir.join(filename);
-
-    if destination == source {
-        return Ok(());
-    }
-
-    if fs::symlink_metadata(&destination).is_ok() {
-        return Err("A file or folder with that name already exists in the destination.".into());
-    }
-
-    fs::rename(&source, &destination).map_err(|error| format!("Failed to move entry: {error}"))?;
-
-    Ok(())
-}
-
-#[tauri::command]
-fn initialize_repository(
-    parent_path: String,
-    new_name: Option<String>,
-    initial_branch: String
-) -> Result<String, String> {
-    let parent = Path::new(&parent_path)
-        .canonicalize()
-        .map_err(|e| format!("Invalid directory: {e}"))?;
-
-    if !parent.is_dir() {
-        return Err("The selected location is not a directory.".into());
-    }
-
-    let valid_branch = Branch::name_is_valid(&initial_branch).map_err(|e| e.to_string())?;
-
-    if !valid_branch {
-        return Err("Invalid Git branch name.".into());
-    }
-
-    if Repository::discover(&parent).is_ok() {
-        return Err("The selected directory is already inside a Git repository.".into());
-    }
-
-    let target = if let Some(name) = new_name {
-        if
-            name.is_empty() ||
-            name == "." ||
-            name == ".." ||
-            name.contains('/') ||
-            name.contains('\\') ||
-            name.contains('\0') ||
-            name.eq_ignore_ascii_case(".git")
-        {
-            return Err("Invalid repository name.".into());
+        if !name.starts_with("refs/heads/") && !name.starts_with("refs/remotes/") {
+            continue;
         }
 
-        let path = parent.join(name);
-
-        fs::create_dir(&path).map_err(|e| format!("Cannot create repository folder: {e}"))?;
-
-        path
-    } else {
-        parent
-    };
-
-    let mut options = RepositoryInitOptions::new();
-
-    options.bare(false).no_reinit(true).initial_head(&initial_branch);
-
-    Repository::init_opts(&target, &options).map_err(|e|
-        format!("Failed to initialize repository: {e}")
-    )?;
-
-    Ok(target.to_string_lossy().into_owned())
-}
-
-#[tauri::command]
-fn is_git_repository(path: String) -> Result<bool, String> {
-    let directory = std::path::Path
-        ::new(&path)
-        .canonicalize()
-        .map_err(|e| e.to_string())?;
-
-    if !directory.is_dir() {
-        return Err("Selected path is not a directory.".into());
-    }
-
-    match Repository::open(&directory) {
-        Ok(repo) => {
-            let workdir = match repo.workdir() {
-                Some(path) => path,
-                None => {
-                    return Ok(false);
-                }
-            };
-
-            Ok(workdir.canonicalize().map_err(|e| e.to_string())? == directory)
+        if reference.kind() == Some(ReferenceType::Symbolic) {
+            continue;
         }
-        Err(error) if error.code() == ErrorCode::NotFound => Ok(false),
-        Err(error) => Err(error.to_string()),
+
+        let commit = reference.peel_to_commit().map_err(|error| error.to_string())?;
+
+        revwalk.push(commit.id()).map_err(|error| error.to_string())?;
     }
+
+    let mut activity = Vec::new();
+
+    for oid_result in revwalk {
+        let oid = oid_result.map_err(|error| error.to_string())?;
+
+        let commit = repo.find_commit(oid).map_err(|error| error.to_string())?;
+
+        let timestamp = commit.time().seconds();
+
+        if timestamp < cutoff || timestamp > now {
+            continue;
+        }
+
+        let author = commit.author().name().unwrap_or("Unknown").to_string();
+
+        activity.push(ActivityCommit { timestamp, author });
+    }
+
+    Ok(activity)
 }
+
+// -- Tauri Initilization --
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

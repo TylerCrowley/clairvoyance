@@ -53,6 +53,9 @@ export const gitGuideCategories: GitGuideCategory[] = [
 ];
 
 export const gitExplanations: Record<string, GitExplanation> = {
+
+  // -- Getting Started --
+
   welcome: {
     title: "Welcome to Git",
     summary: "Learn version control by exploring real repositories.",
@@ -101,7 +104,7 @@ export const gitExplanations: Record<string, GitExplanation> = {
     visual: "working-directory",
   },
 
-  // Tracking Changes
+  // -- Tracking Changes --
 
   status: {
     title: "File Status",
@@ -171,7 +174,7 @@ export const gitExplanations: Record<string, GitExplanation> = {
     command: "git status --ignored",
   },
 
-  // Saving Progress
+  // -- Saving Progress --
 
   committing: {
     title: "Creating Commits",
@@ -214,7 +217,7 @@ export const gitExplanations: Record<string, GitExplanation> = {
     command: "git rev-parse HEAD",
   },
 
-  // Branching
+  // -- Branching --
 
   branching: {
     title: "Understanding Branches",
@@ -283,7 +286,7 @@ export const gitExplanations: Record<string, GitExplanation> = {
     command: "git status",
   },
 
-  // Collaboration
+  // -- Collaboration --
 
   remotes: {
     title: "Remote Repositories",

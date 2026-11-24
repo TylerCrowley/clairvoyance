@@ -3,6 +3,7 @@
     <p class="eyebrow">CLAIRVOYANCE</p>
     <h1>Repository Explorer</h1>
   </div>
+
   <div class="repo-controls">
     <div class="repo-toolbar">
       <div class="repo-toolbar-primary">
@@ -18,6 +19,7 @@
           <span>Create</span>
         </button>
       </div>
+
       <div class="repo-toolbar-secondary">
         <button id="refresh-repo" class="button repo-toolbar-button" disabled>
           <i data-lucide="refresh-cw"></i>
@@ -26,8 +28,10 @@
       </div>
     </div>
   </div>
+
   <span id="status" class="status">No repository selected</span>
 </header>
+
 <main class="workspace">
   <section class="panel workspace-header">
     <div class="repository-identity">
@@ -41,14 +45,17 @@
             Git Guide
           </button>
         </div>
+
         <span id="repo-path" class="muted"></span>
       </div>
     </div>
+
     <div class="repository-actions">
       <div id="repo-status-summary"></div>
       <button id="commit-button" class="button" disabled>Commit</button>
     </div>
   </section>
+
   <div class="workspace-body">
     <aside class="panel explorer-panel">
       <div class="explorer-panel-heading sidebar-heading">
@@ -61,14 +68,17 @@
           </label>
         </div>
       </div>
+
       <div id="tree" class="tree">
         <p class="muted">Open a repository to explore its files.</p>
       </div>
+
       <button id="overview-button" class="button" disabled>
         <i data-lucide="chart-no-axes-combined"></i>
         Repository Overview
       </button>
     </aside>
+
     <section class="panel content-panel">
       <div id="file-view">
         <div class="panel-heading">
@@ -76,6 +86,7 @@
             <h2 id="file-name">No file selected</h2>
             <p id="file-path" class="muted"></p>
           </div>
+
           <div class="file-actions">
             <label
               id="diff-toggle-container"
@@ -105,16 +116,19 @@
             <button id="stage-button" class="button" hidden>Stage File</button>
           </div>
         </div>
+
         <div id="file-content" class="file-content">
           <p class="muted" id="no-file">
             Select a file from the explorer to view its contents.
           </p>
         </div>
       </div>
+
       <div id="repository-overview" hidden>
         <div class="panel-heading">
           <h2>Repository Overview</h2>
         </div>
+
         <div class="overview-content">
           <details id="repository-summary" class="overview-section" open>
             <summary>
@@ -125,7 +139,6 @@
                 <span class="summary-value" id="summary-commits">—</span>
                 <span class="muted">Commits</span>
               </div>
-
               <div class="summary-stat">
                 <span class="summary-value" id="summary-branches">—</span>
                 <span class="muted">Branches</span>
@@ -150,6 +163,7 @@
               </div>
             </div>
           </details>
+
           <details id="commit-history" class="overview-section" open>
             <summary>
               <h3>Commit History</h3>
@@ -202,6 +216,7 @@
               </div>
             </div>
           </details>
+
           <details id="repository-branches" class="overview-section" open>
             <summary>
               <div class="branch-section-header">
@@ -222,6 +237,7 @@
             </summary>
             <div id="branch-list" class="branch-list"></div>
           </details>
+
           <details id="repository-activity" class="overview-section" open>
             <summary>
               <h3>Repository Activity</h3>
@@ -255,12 +271,14 @@
         </div>
       </div>
     </section>
+
     <aside id="git-guide-panel" class="panel git-guide-panel" hidden>
       <div class="git-guide-header sidebar-heading">
         <div class="git-guide-heading">
           <i data-lucide="book-open"></i>
           <span>Git Guide</span>
         </div>
+
         <button
           id="git-guide-close"
           class="button git-guide-close"
@@ -270,6 +288,7 @@
           <i data-lucide="x"></i>
         </button>
       </div>
+
       <div class="git-guide-content">
         <details id="git-guide-browser" class="git-guide-browser">
           <summary>
@@ -282,6 +301,7 @@
             aria-label="Git Guide topics"
           ></nav>
         </details>
+
         <section class="git-guide-explanation">
           <h3 id="git-guide-title">Welcome to Git</h3>
           <p id="git-guide-summary" class="git-guide-summary"></p>
@@ -307,6 +327,7 @@
       </div>
     </aside>
   </div>
+
   <dialog id="commit-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h2>Commit Changes</h2>
@@ -330,6 +351,7 @@
       </div>
     </div>
   </dialog>
+
   <dialog id="create-branch-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h3>Create Branch</h3>
@@ -351,6 +373,7 @@
       </form>
     </div>
   </dialog>
+
   <dialog id="merge-branches-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <form id="merge-branches-form">
@@ -376,6 +399,7 @@
           <strong id="merge-preview-title"></strong>
           <p id="merge-preview-description"></p>
         </div>
+
         <div class="app-dialog-actions">
           <button id="cancel-merge" class="button" type="button">Cancel</button>
           <button id="confirm-merge" class="button" type="submit">Merge</button>
@@ -383,6 +407,7 @@
       </form>
     </div>
   </dialog>
+
   <dialog id="delete-entry-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h2>Confirm Deletion</h2>
@@ -399,6 +424,7 @@
       </div>
     </div>
   </dialog>
+
   <dialog id="init-repository-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h2>Initialize Repository</h2>
@@ -409,6 +435,7 @@
         <label for="init-repository-name">Repository Name</label>
         <input id="init-repository-name" type="text" placeholder="my-project" />
       </div>
+
       <label for="init-repository-branch">Initial Branch</label>
       <input id="init-repository-branch" type="text" value="main" required />
       <p class="muted">
@@ -424,6 +451,7 @@
       </div>
     </div>
   </dialog>
+
   <div id="explorer-context-menu" class="explorer-context-menu" hidden>
     <button type="button" data-action="new-file">
       <i data-lucide="file-plus"></i>
