@@ -58,11 +58,13 @@ import pdfWorkerURL from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import { gitExplanations, gitGuideCategories } from "./gitGuide";
 
+/** Staged (index) and unstaged (working-tree) status values returned by Rust. */
 interface GitFileStatus {
   staged: string | null;
   unstaged: string | null;
 }
 
+/** Recursive Explorer node containing filesystem metadata, Git status, and children. */
 interface TreeEntry {
   name: string;
   path: string;
@@ -72,6 +74,7 @@ interface TreeEntry {
   children: TreeEntry[];
 }
 
+/** A single change or context line with optional old and new line numbers. */
 interface FileDiffLine {
   old_line_number: number | null;
   new_line_number: number | null;
@@ -79,6 +82,7 @@ interface FileDiffLine {
   content: string;
 }
 
+/** Commit identity, author, timestamp (Unix seconds), message, and parent hashes. */
 interface CommitInfo {
   hash: string;
   message: string;
@@ -87,6 +91,7 @@ interface CommitInfo {
   parents: string[];
 }
 
+/** Aggregate repository information shown in the overview and Git Guide. */
 interface RepositorySummary {
   current_branch: string | null;
   changed_files: number;
@@ -96,18 +101,21 @@ interface RepositorySummary {
   latest_commit: string | null;
 }
 
+/** Local branch name, HEAD status, and optional tip commit hash. */
 interface BranchInfo {
   name: string;
   is_current: boolean;
   commit_hash: string | null;
 }
 
+/** Commit together with its computed row and visual lane in the history graph. */
 interface GraphCommit {
   commit: CommitInfo;
   row: number;
   lane: number;
 }
 
+/** Directed graph edge between a commit and a displayed parent. */
 interface GraphConnection {
   fromRow: number;
   fromLane: number;
@@ -115,11 +123,13 @@ interface GraphConnection {
   toLane: number;
 }
 
+/** Position in the commit graph SVG coordinate system. */
 interface GraphPoint {
   x: number;
   y: number;
 }
 
+/** File-level change status and optional addition/deletion statistics. */
 interface CommitFileChange {
   path: string;
   status: string;
@@ -127,6 +137,7 @@ interface CommitFileChange {
   deletions: number | null;
 }
 
+/** Timestamp and author of a commit used for activity aggregation. */
 interface ActivityCommit {
   timestamp: number;
   author: string;
@@ -148,28 +159,36 @@ app.innerHTML = appHTML;
 
 let mergeCurrentBranch = "";
 
+/** Current Explorer file selection and its most recently loaded metadata. */
 let selectedFile: TreeEntry | null = null;
 
+/** Path of the active repository, or null until one has been loaded. */
 let currentRepoPath: string | null = null;
 
 let showingDiff = false;
 
+/** Commit lane assignments used to redraw the history graph. */
 let currentGraphCommits: GraphCommit[] = [];
 
+/** Parent-child connections in the current commit graph. */
 let currentGraphConnections: GraphConnection[] = [];
 
 let activityChart: Chart | null = null;
 
 let currentActivity: ActivityCommit[] = [];
 
+/** Monotonically increasing token used to discard outdated activity responses. */
 let activityRequestId = 0;
 
 let isEditing = false;
 
+/** Last loaded or saved text used as the baseline for detecting unsaved edits. */
 let originalFileContent = "";
 
+/** Most recent contents of the in-memory text editor. */
 let editedFileContent = "";
 
+/** Image Blob URL that must be revoked when changing the selected file. */
 let currentImageURL: string | null = null;
 
 let showingMarkdownSource = false;
@@ -186,10 +205,13 @@ let pendingDeleteEntry: TreeEntry | null = null;
 
 let repositoryInitMode: RepositoryInitMode = "new";
 
+/** Last repository tree available to the Git Guide visualization. */
 let currentGuideTree: TreeEntry | null = null;
 
+/** Repository statistics available to the Git Guide visualization. */
 let currentGuideSummary: RepositorySummary | null = null;
 
+/** Current educational topic used to highlight the guide and diagram. */
 let currentGuideTopic: keyof typeof gitExplanations = "welcome";
 
 const graphColors = [
@@ -373,6 +395,7 @@ const repositoryIdentity = document.querySelector<HTMLElement>(
 
 // -- Shared UI & Icon Helpers --
 
+/** Replaces the repository toolbar, identity, and guide icon placeholders with Lucide SVGs. */
 function renderRepositoryToolbarIcons(): void {
   const controls = document.querySelector<HTMLElement>(".repo-controls");
 
@@ -414,6 +437,7 @@ function renderRepositoryToolbarIcons(): void {
   }
 }
 
+/** Switches the main content panel between the file viewer and repository overview. */
 function showWorkspaceView(view: WorkspaceView) {
   const fileView = document.querySelector<HTMLElement>("#file-view");
   const overview = document.querySelector<HTMLElement>("#repository-overview");
@@ -426,6 +450,15 @@ function showWorkspaceView(view: WorkspaceView) {
 
 // -- Repository Management --
 
+/**
+ * Configures and opens the repository initialization dialog.
+ *
+ * @param path - The selected parent directory or existing folder.
+ * @param mode - Whether to create a new repository directory or initialize the selected one.
+ *
+ * @remarks
+ * Resets the form to a default `main` branch and shows the repository name input only for new directories.
+ */
 function showInitializeRepositoryDialog(
   path: string,
   mode: RepositoryInitMode,
@@ -458,6 +491,16 @@ function showInitializeRepositoryDialog(
   initRepositoryDialog.showModal();
 }
 
+/**
+ * Loads repository data and refreshes the Explorer, overview, and Git Guide.
+ *
+ * @param path - Filesystem path of the repository to load.
+ *
+ * @remarks
+ * Fetches the directory tree, summary, commit history, and branches in sequence, then starts activity loading without awaiting it. Preserves expanded directories when refreshing the same repository and attempts to reselect the previously opened file. Updates shared state and displays errors in the UI.
+ *
+ * @returns Resolves after the requested updates complete; no data is returned.
+ */
 async function loadRepository(path: string) {
   status.textContent = "Refreshing repository…";
   status.classList.remove("success");
@@ -482,6 +525,7 @@ async function loadRepository(path: string) {
     currentGuideSummary = repositorySummary;
     renderGitGuideVisual(gitExplanations[currentGuideTopic].visual);
 
+    // Preserve folder expansion only when refreshing the currently open repository.
     const expandedDirectories =
       currentRepoPath === path ? getExpandedDirectories() : new Set<string>();
 
@@ -505,6 +549,7 @@ async function loadRepository(path: string) {
     renderTreeIcons();
     renderStatusSummary(root);
 
+    // Rebind the selection to the newly fetched tree instead of retaining stale metadata.
     if (selectedPath) {
       const updatedFile = findFileByPath(root, selectedPath);
 
@@ -550,6 +595,16 @@ async function loadRepository(path: string) {
   }
 }
 
+/**
+ * Retrieves summary statistics and updates the repository overview.
+ *
+ * @param repoPath - Filesystem path of the repository.
+ *
+ * @remarks
+ * Displays branch, commit, contributor, and changed-file counts, along with the latest commit. Missing UI elements or backend errors result in `null`.
+ *
+ * @returns The retrieved summary, or `null` if it cannot be displayed.
+ */
 async function loadRepositorySummary(
   repoPath: string,
 ): Promise<RepositorySummary | null> {
@@ -605,6 +660,16 @@ async function loadRepositorySummary(
 
 // -- File Explorer & File Statuses --
 
+/**
+ * Counts changed files within a file or directory tree.
+ *
+ * @param entry - Tree node to inspect.
+ *
+ * @remarks
+ * Counts each changed file once even if it has both staged and unstaged changes.
+ *
+ * @returns Number of changed file nodes.
+ */
 function countChangedFiles(entry: TreeEntry): number {
   if (!entry.is_dir) {
     return entry.status?.staged || entry.status?.unstaged ? 1 : 0;
@@ -616,6 +681,14 @@ function countChangedFiles(entry: TreeEntry): number {
   );
 }
 
+/**
+ * Finds a file with a matching absolute path in a repository tree.
+ *
+ * @param entry - Node at which to begin the recursive search.
+ * @param path - Filesystem path to match.
+ *
+ * @returns The matching file entry, or `null`.
+ */
 function findFileByPath(entry: TreeEntry, path: string): TreeEntry | null {
   if (!entry.is_dir && entry.path === path) {
     return entry;
@@ -627,6 +700,7 @@ function findFileByPath(entry: TreeEntry, path: string): TreeEntry | null {
   return null;
 }
 
+/** Selects a Lucide icon name for a filename based on recognized names and extensions. */
 function getFileIcon(filename: string): string {
   const name = filename.toLowerCase();
   const extension = name.split(".").pop() ?? "";
@@ -727,6 +801,7 @@ function getFileIcon(filename: string): string {
   }
 }
 
+/** Converts icon placeholders in the Explorer and context menu into Lucide icons. */
 function renderTreeIcons(): void {
   const tree = document.querySelector<HTMLElement>("#tree");
   if (!tree) return;
@@ -764,6 +839,18 @@ function renderTreeIcons(): void {
   }
 }
 
+/**
+ * Recursively creates the Explorer DOM for a repository tree node.
+ *
+ * @param entry - File or directory entry to render.
+ * @param isRoot - Whether the entry is the root of the Explorer.
+ * @param expandedDirectories - Paths to restore as expanded during refresh.
+ *
+ * @remarks
+ * Directory nodes use expandable `details` elements and render children recursively. File nodes register click and context-menu actions. Both kinds show staged and unstaged status indicators; unreadable directories are not expanded.
+ *
+ * @returns The DOM element representing the entry.
+ */
 function renderEntry(
   entry: TreeEntry,
   isRoot = false,
@@ -889,6 +976,7 @@ function renderEntry(
   return file;
 }
 
+/** Collects currently expanded directory paths so refreshes can preserve the tree view. */
 function getExpandedDirectories(): Set<string> {
   const expanded = new Set<string>();
 
@@ -903,6 +991,7 @@ function getExpandedDirectories(): Set<string> {
   return expanded;
 }
 
+/** Creates a compact badge for a Git status value. */
 function createStatusIndicator(status: string | null): HTMLElement | null {
   if (!status) return null;
 
@@ -933,6 +1022,16 @@ function createStatusIndicator(status: string | null): HTMLElement | null {
   return indicator;
 }
 
+/**
+ * Counts staged and unstaged status occurrences throughout the tree.
+ *
+ * @param root - Root of the repository tree.
+ *
+ * @remarks
+ * A file may contribute to both staged and unstaged totals because Git tracks index and working-tree changes separately.
+ *
+ * @returns Counts keyed by area and status, such as `staged-modified`.
+ */
 function getStatusCounts(root: TreeEntry): Record<string, number> {
   const counts: Record<string, number> = {};
 
@@ -956,6 +1055,14 @@ function getStatusCounts(root: TreeEntry): Record<string, number> {
   return counts;
 }
 
+/**
+ * Displays Git status totals beside the repository heading.
+ *
+ * @param root - Repository tree used to calculate status counts.
+ *
+ * @remarks
+ * Renders indicators in a fixed order and enables the commit button when at least one recognized status count is present.
+ */
 function renderStatusSummary(root: TreeEntry) {
   const summary = document.querySelector<HTMLDivElement>(
     "#repo-status-summary",
@@ -1011,6 +1118,16 @@ function renderStatusSummary(root: TreeEntry) {
 
 // -- File Management & Menus --
 
+/**
+ * Opens the Explorer context menu for a selected entry.
+ *
+ * @param event - Context-menu mouse event determining the menu position.
+ * @param entry - Explorer entry associated with the menu.
+ * @param isRoot - Whether the selected entry is the repository root.
+ *
+ * @remarks
+ * Stores the target entry, disables destructive root actions, and clamps the menu position to the visible window.
+ */
 function showExplorerContextMenu(
   event: MouseEvent,
   entry: TreeEntry,
@@ -1040,6 +1157,7 @@ function showExplorerContextMenu(
   explorerContextMenu.style.top = `${Math.max(0, Math.min(event.clientY, window.innerHeight - rect.height))}px`;
 }
 
+/** Hides the Explorer context menu and clears its stored target. */
 function hideExplorerContextMenu(): void {
   if (!explorerContextMenu) return;
 
@@ -1048,6 +1166,15 @@ function hideExplorerContextMenu(): void {
   contextMenuIsRoot = false;
 }
 
+/**
+ * Prompts for a new file or folder name and asks Rust to create it.
+ *
+ * @param entry - Selected file or parent directory.
+ * @param isDirectory - Whether to create a directory instead of a file.
+ *
+ * @remarks
+ * Rejects creation while there are unsaved editor changes and refreshes the repository after success. The Rust command performs authoritative path validation.
+ */
 async function createExplorerEntry(
   entry: TreeEntry,
   isDirectory: boolean,
@@ -1086,6 +1213,14 @@ async function createExplorerEntry(
   }
 }
 
+/**
+ * Prompts for a new name and invokes the repository rename command.
+ *
+ * @param entry - Explorer entry to rename.
+ *
+ * @remarks
+ * Blocks the operation when editor changes are unsaved, then refreshes the Explorer on success.
+ */
 async function renameExplorerEntry(entry: TreeEntry): Promise<void> {
   if (!currentRepoPath) return;
 
@@ -1118,6 +1253,14 @@ async function renameExplorerEntry(entry: TreeEntry): Promise<void> {
   }
 }
 
+/**
+ * Moves the selected Explorer entry into a chosen directory.
+ *
+ * @param entry - File or folder to move.
+ *
+ * @remarks
+ * Uses a native directory picker, invokes Rust to validate and perform the move, and clears the file selection when it refers to the moved entry or a descendant.
+ */
 async function moveExplorerEntry(entry: TreeEntry): Promise<void> {
   if (!currentRepoPath) return;
 
@@ -1162,6 +1305,14 @@ async function moveExplorerEntry(entry: TreeEntry): Promise<void> {
   }
 }
 
+/**
+ * Displays a confirmation dialog for permanently deleting an Explorer entry.
+ *
+ * @param entry - File or directory selected for deletion.
+ *
+ * @remarks
+ * Warns that deleting a directory also removes nested files, including hidden and untracked entries. Rejects deletion while unsaved edits exist.
+ */
 function showDeleteConfirmation(entry: TreeEntry): void {
   if (!deleteEntryDialog || !deleteEntryMessage) return;
 
@@ -1184,6 +1335,14 @@ function showDeleteConfirmation(entry: TreeEntry): void {
   deleteEntryDialog.showModal();
 }
 
+/**
+ * Deletes the specified file or directory through the Rust backend.
+ *
+ * @param entry - Entry to delete.
+ *
+ * @remarks
+ * Clears the selected file when the deleted entry contains it, and refreshes the repository after successful deletion.
+ */
 async function deleteExplorerEntry(entry: TreeEntry): Promise<void> {
   if (!currentRepoPath) return;
 
@@ -1212,24 +1371,34 @@ async function deleteExplorerEntry(entry: TreeEntry): Promise<void> {
 
 // -- File Viewing & Editing --
 
+/** Checks whether a filename has a Markdown extension. */
 function isMarkdownFile(filename: string): boolean {
   const extension = filename.toLowerCase();
 
   return extension.endsWith(".md") || extension.endsWith(".markdown");
 }
 
+/** Checks whether a filename uses a supported image extension. */
 function isImageFile(filename: string): boolean {
   return /\.(png|jpe?g|gif|webp|svg)$/i.test(filename);
 }
 
+/** Checks whether a filename ends in `.pdf`. */
 function isPDFFile(filename: string): boolean {
   return filename.toLowerCase().endsWith(".pdf");
 }
 
+/** Checks whether a filename ends in `.docx`. */
 function isDOCXFile(filename: string): boolean {
   return filename.toLowerCase().endsWith(".docx");
 }
 
+/**
+ * Updates the Edit, Save, and Cancel controls to match editor state.
+ *
+ * @remarks
+ * Disables editing for unsupported files, image/PDF/DOCX previews, and diff mode. Save is enabled only when the editor contains unsaved changes.
+ */
 function updateEditingButtons() {
   if (!editFileButton || !cancelEditButton || !saveFileButton) {
     return;
@@ -1251,6 +1420,14 @@ function updateEditingButtons() {
     !isEditing || editedFileContent === originalFileContent;
 }
 
+/**
+ * Shows and synchronizes the diff toggle for the selected file.
+ *
+ * @param entry - Current file entry, or `null` when no file is selected.
+ *
+ * @remarks
+ * The toggle is hidden for unchanged files and supported non-text preview formats.
+ */
 function updateDiffToggle(entry: TreeEntry | null) {
   if (!diffToggle || !diffToggleContainer) return;
 
@@ -1267,6 +1444,7 @@ function updateDiffToggle(entry: TreeEntry | null) {
   diffToggle.checked = hasChanges && showingDiff;
 }
 
+/** Shows the Markdown source toggle only when Markdown preview is available. */
 function updateMarkdownToggle(): void {
   if (!markdownToggle || !markdownToggleContainer) return;
 
@@ -1277,6 +1455,7 @@ function updateMarkdownToggle(): void {
   markdownToggle.checked = showingMarkdownSource;
 }
 
+/** Asks for confirmation before discarding unsaved editor changes. */
 function confirmDiscardEdits(): boolean {
   if (!isEditing || editedFileContent === originalFileContent) {
     return true;
@@ -1284,6 +1463,12 @@ function confirmDiscardEdits(): boolean {
   return window.confirm("You have unsaved changes. Discard them?");
 }
 
+/**
+ * Replaces the current text preview with an editable text area.
+ *
+ * @remarks
+ * Initializes the editor from the original content, tracks input changes, and updates the available editing controls.
+ */
 function startFileEditing() {
   if (!selectedFile || isEditing || showingDiff) return;
 
@@ -1316,6 +1501,17 @@ function startFileEditing() {
   updateMarkdownToggle();
 }
 
+/**
+ * Selects and displays an Explorer file using the appropriate preview or editor mode.
+ *
+ * @param entry - Selected file metadata from the repository tree.
+ * @param element - Explorer element to mark as selected.
+ *
+ * @remarks
+ * Prompts before discarding unsaved edits, revokes a previous image object URL, and resets file-view state. Image, PDF, DOCX, and UTF-8 text use different backend reads and renderers. Image and document loads check whether the file selection changed while awaiting data; unsupported binary text displays a fallback view.
+ *
+ * @returns Resolves after the selected preview path finishes; errors are shown in the file view.
+ */
 async function openFile(entry: TreeEntry, element: HTMLElement) {
   if (!currentRepoPath) return;
 
@@ -1487,6 +1683,7 @@ async function openFile(entry: TreeEntry, element: HTMLElement) {
   }
 }
 
+/** Renders text content as separate lines with line-number gutters. */
 function renderPlainText(contents: string, container: HTMLElement): void {
   const pre = document.createElement("pre");
   pre.className = "file-text";
@@ -1512,6 +1709,12 @@ function renderPlainText(contents: string, container: HTMLElement): void {
   container.replaceChildren(pre);
 }
 
+/**
+ * Renders the selected Markdown file as source text or formatted preview.
+ *
+ * @remarks
+ * Uses the source toggle state and the last loaded text contents; updates the toggle after rendering.
+ */
 function renderCurrentMarkdownView(): void {
   if (!selectedFile || !isMarkdownFile(selectedFile.name)) {
     return;
@@ -1530,6 +1733,15 @@ function renderCurrentMarkdownView(): void {
   updateMarkdownToggle();
 }
 
+/**
+ * Converts Markdown text into a sanitized HTML preview.
+ *
+ * @param contents - Markdown source text.
+ * @param container - Element to receive the rendered preview.
+ *
+ * @remarks
+ * Parses GitHub-flavored Markdown, sanitizes generated HTML, removes image sources other than absolute HTTP(S) URLs, and strips link destinations before inserting the preview.
+ */
 function renderMarkdown(contents: string, container: HTMLElement): void {
   const html = marked.parse(contents, {
     async: false,
@@ -1537,6 +1749,7 @@ function renderMarkdown(contents: string, container: HTMLElement): void {
     breaks: false,
   });
 
+  // Sanitize generated markup before inserting it into the application DOM.
   const sanitizedHTML = DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
   });
@@ -1565,6 +1778,7 @@ function renderMarkdown(contents: string, container: HTMLElement): void {
     }
   });
 
+  // Render linked text without navigating away from the local application.
   preview.querySelectorAll("a").forEach((link) => {
     link.removeAttribute("href");
   });
@@ -1572,6 +1786,19 @@ function renderMarkdown(contents: string, container: HTMLElement): void {
   container.replaceChildren(preview);
 }
 
+/**
+ * Loads image bytes from Rust and creates a browser object URL.
+ *
+ * @param repoPath - Repository containing the image.
+ * @param filePath - Path of the image file.
+ *
+ * @remarks
+ * Maps supported extensions to MIME types and wraps the returned bytes in a Blob. Callers must revoke the returned object URL when it is no longer used.
+ *
+ * @returns Object URL for the loaded image.
+ *
+ * @throws Throws if the backend read fails or the extension is unsupported.
+ */
 async function loadLocalImage(
   repoPath: string,
   filePath: string,
@@ -1603,6 +1830,7 @@ async function loadLocalImage(
   return URL.createObjectURL(blob);
 }
 
+/** Inserts an image preview using a supplied object URL. */
 function renderImage(url: string, container: HTMLElement): void {
   const image = document.createElement("img");
 
@@ -1613,6 +1841,19 @@ function renderImage(url: string, container: HTMLElement): void {
   container.replaceChildren(image);
 }
 
+/**
+ * Renders every page of a PDF into a canvas inside the file viewer.
+ *
+ * @param bytes - PDF file bytes returned by Rust.
+ * @param container - Element to receive the rendered pages.
+ *
+ * @remarks
+ * PDF.js decodes the document and renders pages sequentially at 1.5× viewport scale. Replacing the viewer contents happens before page rendering completes.
+ *
+ * @returns Resolves when all pages have rendered.
+ *
+ * @throws Rejects if PDF decoding, page rendering, or canvas creation fails.
+ */
 async function renderPDF(
   bytes: number[],
   container: HTMLElement,
@@ -1655,6 +1896,20 @@ async function renderPDF(
   }
 }
 
+/**
+ * Renders a DOCX file into the document preview.
+ *
+ * @param bytes - DOCX file bytes returned by Rust.
+ * @param container - Element to receive the document.
+ * @param isCurrent - Callback indicating whether the same file remains selected.
+ *
+ * @remarks
+ * The document is first rendered in a detached element, then inserted only if the selection is still current. Page structure, headers, footers, and footnotes are enabled.
+ *
+ * @returns Resolves after rendering and the selection check.
+ *
+ * @throws Rejects if the DOCX rendering library fails.
+ */
 async function renderDOCX(
   bytes: number[],
   container: HTMLElement,
@@ -1672,11 +1927,13 @@ async function renderDOCX(
     useBase64URL: true,
   });
 
+  // Rendering may finish after the user selects another file.
   if (!isCurrent()) return;
 
   container.replaceChildren(viewer);
 }
 
+/** Shows a fallback message for a file that cannot be previewed. */
 function renderUnsupportedFile(filename: string, container: HTMLElement): void {
   const message = document.createElement("div");
   message.className = "unsupported-file";
@@ -1709,6 +1966,14 @@ function renderUnsupportedFile(filename: string, container: HTMLElement): void {
 
 // -- Git Opertaions & Branches --
 
+/**
+ * Updates the stage/unstage action for the selected Git file.
+ *
+ * @param entry - Selected file, or `null`.
+ *
+ * @remarks
+ * Prefers unstaged changes when both areas contain changes; disables the action for conflicted files and unstaged deletions.
+ */
 function updateStageButton(entry: TreeEntry | null) {
   if (!stageButton) return;
 
@@ -1727,6 +1992,7 @@ function updateStageButton(entry: TreeEntry | null) {
   }
 }
 
+/** Enables commit actions when the commit message is nonempty. */
 function updateCommitButtons() {
   const valid = Boolean(commitMessage?.value.trim());
 
@@ -1734,6 +2000,14 @@ function updateCommitButtons() {
   if (commitAll) commitAll.disabled = !valid;
 }
 
+/**
+ * Creates a commit through the Rust backend using the current dialog message.
+ *
+ * @param commitAllChanges - Whether Rust should stage all changes before committing.
+ *
+ * @remarks
+ * Disables dialog controls during the request, refreshes the repository after success, and reports failures in the status display. Errors are caught rather than propagated.
+ */
 async function performCommit(commitAllChanges: boolean) {
   if (!currentRepoPath || !commitMessage || !commitDialog) return;
 
@@ -1764,6 +2038,14 @@ async function performCommit(commitAllChanges: boolean) {
   }
 }
 
+/**
+ * Loads and displays local Git branches with switching controls.
+ *
+ * @param repoPath - Repository whose local branches should be listed.
+ *
+ * @remarks
+ * Marks the current branch and adds Switch buttons to other branches. Errors are displayed in the branch list.
+ */
 async function loadLocalBranches(repoPath: string) {
   const branchList = document.querySelector<HTMLDivElement>("#branch-list");
   if (!branchList) return;
@@ -1833,6 +2115,15 @@ async function loadLocalBranches(repoPath: string) {
   }
 }
 
+/**
+ * Requests a local branch checkout and refreshes the repository on success.
+ *
+ * @param repoPath - Repository containing the target branch.
+ * @param branchName - Branch to check out.
+ *
+ * @remarks
+ * Backend errors are caught and shown in an alert.
+ */
 async function switchBranch(
   repoPath: string,
   branchName: string,
@@ -1848,6 +2139,18 @@ async function switchBranch(
   }
 }
 
+/**
+ * Populates merge options from local branches and identifies the current branch.
+ *
+ * @param repoPath - Repository from which to load branch names.
+ *
+ * @remarks
+ * Excludes the current branch from the selectable options.
+ *
+ * @returns Name of the checked-out branch.
+ *
+ * @throws Throws if no current branch or alternative merge branch is available, or when the backend request fails.
+ */
 async function populateMergeDialog(repoPath: string) {
   const branches = await invoke<BranchInfo[]>("get_local_branches", {
     repoPath,
@@ -1882,6 +2185,11 @@ async function populateMergeDialog(repoPath: string) {
   return current.name;
 }
 
+/**
+ * Determines source and target branches from the selected merge direction.
+ *
+ * @returns Object containing the selected `source` and `target` branch names.
+ */
 function getMergeDirection() {
   const selected = document.querySelector<HTMLInputElement>(
     'input[name="merge-direction"]:checked',
@@ -1902,6 +2210,7 @@ function getMergeDirection() {
   };
 }
 
+/** Updates the merge explanation and button label to reflect the selected direction. */
 function updateMergePreview() {
   const { source, target } = getMergeDirection();
 
@@ -1927,10 +2236,21 @@ function updateMergePreview() {
 
 // -- Repository Information & History --
 
+/** Returns the palette color for a commit graph lane. */
 function getGraphColor(lane: number): string {
   return graphColors[lane % graphColors.length];
 }
 
+/**
+ * Assigns horizontal lanes and vertical rows to commits in the history graph.
+ *
+ * @param commits - Commits in the display order supplied by the backend.
+ *
+ * @remarks
+ * Maintains an array of active lanes containing the parent hash each lane expects next. Reuses available lanes and assigns new lanes to additional merge parents. The first parent continues in the current lane when that parent is not already represented.
+ *
+ * @returns Commit records annotated with row and lane positions.
+ */
 function calculateGraphLanes(commits: CommitInfo[]): GraphCommit[] {
   const activeLanes: (string | null)[] = [];
   const graphCommits: GraphCommit[] = [];
@@ -1972,6 +2292,7 @@ function calculateGraphLanes(commits: CommitInfo[]): GraphCommit[] {
         continue;
       }
 
+        // Additional merge parents need their own lane until their commits are encountered.
       const parentLane = findAvailableLane();
       activeLanes[parentLane] = parent;
     }
@@ -1980,11 +2301,22 @@ function calculateGraphLanes(commits: CommitInfo[]): GraphCommit[] {
   return graphCommits;
 }
 
+/**
+ * Builds graph edges between displayed commits and their parents.
+ *
+ * @param graphCommits - Commits with calculated graph positions.
+ *
+ * @remarks
+ * Indexes commits by hash, then emits a connection for each parent present in the displayed history. Edges to parents outside the limited history are omitted.
+ *
+ * @returns Connections describing source and destination rows and lanes.
+ */
 function calculateGraphConnections(
   graphCommits: GraphCommit[],
 ): GraphConnection[] {
   const connections: GraphConnection[] = [];
 
+    // Hash lookup avoids scanning every commit for each parent relationship.
   const commitPositions = new Map<string, GraphCommit>();
 
   for (const graphCommit of graphCommits) {
@@ -2009,6 +2341,20 @@ function calculateGraphConnections(
   return connections;
 }
 
+/**
+ * Converts graph lanes and table row positions to SVG coordinates.
+ *
+ * @param graphCommits - Commits with assigned rows and lanes.
+ * @param tableBody - Table body containing the commit rows.
+ * @param container - Scrollable table container defining the coordinate origin.
+ *
+ * @remarks
+ * Uses measured DOM rectangles, container scroll offsets, fixed lane spacing, and each row center to align graph lines with table content.
+ *
+ * @returns Screen-layout-based points for each displayed commit.
+ *
+ * @throws Throws if a commit row lacks its expected graph cell.
+ */
 function calculateGraphPositions(
   graphCommits: GraphCommit[],
   tableBody: HTMLTableSectionElement,
@@ -2017,6 +2363,7 @@ function calculateGraphPositions(
   const rows = Array.from(
     tableBody.querySelectorAll<HTMLTableRowElement>("tr.commit-history-row"),
   );
+  // SVG coordinates must account for both rendered table geometry and scrolling.
   const containerRect = container.getBoundingClientRect();
 
   const laneSpacing = 24;
@@ -2050,6 +2397,7 @@ function calculateGraphPositions(
   });
 }
 
+/** Creates an SVG path between two graph coordinates. */
 function createConnectionPath(start: GraphPoint, end: GraphPoint): string {
   if (start.x === end.x) {
     return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
@@ -2068,6 +2416,17 @@ function createConnectionPath(start: GraphPoint, end: GraphPoint): string {
     `;
 }
 
+/**
+ * Draws the repository commit graph as an SVG overlay on the history table.
+ *
+ * @param graphCommits - Displayed commits with lane assignments.
+ * @param connections - Parent relationships to draw.
+ * @param tableBody - History table body used for row alignment.
+ * @param container - Scrollable container that hosts the SVG.
+ *
+ * @remarks
+ * Replaces any previous graph overlay, measures commit row positions, and draws color-coded connections and nodes. An SVG mask hides graph paths behind an expanded commit-details row so the overlay does not cross the details content.
+ */
 function renderCommitGraph(
   graphCommits: GraphCommit[],
   connections: GraphConnection[],
@@ -2085,6 +2444,7 @@ function renderCommitGraph(
   svg.setAttribute("width", String(container.scrollWidth));
   svg.setAttribute("height", String(container.scrollHeight));
 
+  // Mask the open details row so graph lines do not cover its contents.
   const mask = document.createElementNS(svgNS, "mask");
   mask.setAttribute("id", "commit-graph-mask");
   mask.setAttribute("maskUnits", "userSpaceOnUse");
@@ -2149,6 +2509,7 @@ function renderCommitGraph(
   container.appendChild(svg);
 }
 
+/** Redraws the commit graph when its table is visible and measurable. */
 function updateCommitGraph() {
   const tableBody = document.querySelector<HTMLTableSectionElement>(
     "#commit-history-body",
@@ -2168,6 +2529,14 @@ function updateCommitGraph() {
   );
 }
 
+/**
+ * Loads commit history and constructs its interactive table and graph.
+ *
+ * @param repoPath - Repository whose commit history should be shown.
+ *
+ * @remarks
+ * Requests commits, computes lanes and parent connections, creates selectable rows, and expands a details row for the selected commit. The graph is rerendered as selection changes; failures are displayed inside the table.
+ */
 async function loadCommitHistory(repoPath: string) {
   const tableBody = document.querySelector<HTMLTableSectionElement>(
     "#commit-history-body",
@@ -2294,6 +2663,7 @@ async function loadCommitHistory(repoPath: string) {
   updateCommitGraph();
 }
 
+/** Fills the commit details panel with metadata and parent commit hashes. */
 function showCommitDetails(commit: CommitInfo) {
   const details = document.querySelector<HTMLElement>("#commit-details");
   const message = document.querySelector<HTMLElement>("#detail-message");
@@ -2329,6 +2699,7 @@ function showCommitDetails(commit: CommitInfo) {
   details.hidden = false;
 }
 
+/** Closes the expanded history details and restores its panel outside the table. */
 function closeCommitDetailsRow() {
   const details = document.querySelector<HTMLElement>("#commit-details");
   const detailsRow = document.querySelector<HTMLElement>(".commit-details-row");
@@ -2343,6 +2714,15 @@ function closeCommitDetailsRow() {
   detailsRow?.remove();
 }
 
+/**
+ * Loads the files changed by a selected commit and displays their diff statistics.
+ *
+ * @param repoPath - Repository containing the selected commit.
+ * @param commitHash - Commit to inspect.
+ *
+ * @remarks
+ * Checks the selected history row after awaiting Rust so a late response does not replace another commit’s details. Updates the graph after rendering.
+ */
 async function loadCommitFileChanges(repoPath: string, commitHash: string) {
   const container = document.querySelector<HTMLElement>("#commit-changes-list");
 
@@ -2410,6 +2790,7 @@ async function loadCommitFileChanges(repoPath: string, commitHash: string) {
   }
 }
 
+/** Returns a new date at local midnight on the Monday of the supplied week. */
 function getWeekStart(date: Date): Date {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
@@ -2419,11 +2800,22 @@ function getWeekStart(date: Date): Date {
   return start;
 }
 
+/**
+ * Groups commit activity into 12 consecutive Monday–Sunday weeks.
+ *
+ * @param commits - Commit records with Unix timestamps in seconds.
+ *
+ * @remarks
+ * Builds fixed weekly buckets ending in the current week and counts matching commits using local dates.
+ *
+ * @returns Chart labels and commit counts for each week.
+ */
 function calculateWeeklyActivity(commits: ActivityCommit[]) {
   const labels: string[] = [];
   const counts: number[] = [];
   const weekStarts: number[] = [];
 
+  // Fixed Monday-based buckets keep week labels consistent across chart refreshes.
   const currentWeek = getWeekStart(new Date());
 
   // Was going to do last 3 months, but 12 weeks seemed easier and keeps it consistent
@@ -2467,6 +2859,11 @@ function calculateWeeklyActivity(commits: ActivityCommit[]) {
   return { labels, counts };
 }
 
+/**
+ * Filters current activity records to the past 12 calendar-week buckets.
+ *
+ * @returns Activity commits between the earliest displayed Monday and now.
+ */
 function getActivityInRange(): ActivityCommit[] {
   const start = getWeekStart(new Date());
   start.setDate(start.getDate() - 11 * 7);
@@ -2479,6 +2876,7 @@ function getActivityInRange(): ActivityCommit[] {
   });
 }
 
+/** Updates total commits, active days, and unique contributor counts for recent activity. */
 function renderActivityStatistics() {
   const commits = getActivityInRange();
 
@@ -2513,6 +2911,12 @@ function renderActivityStatistics() {
   }
 }
 
+/**
+ * Displays contributors ranked by commit count for the recent activity period.
+ *
+ * @remarks
+ * Computes each contributor’s share relative to the most active contributor to size the horizontal bars.
+ */
 function renderContributorActivity() {
   const container = document.querySelector<HTMLElement>(
     "#activity-contributors-list",
@@ -2566,6 +2970,12 @@ function renderContributorActivity() {
   }
 }
 
+/**
+ * Renders the weekly activity chart and associated repository statistics.
+ *
+ * @remarks
+ * Skips rendering when the canvas is unavailable or not laid out. Destroys the previous Chart.js instance before recreating it and updates contributor and aggregate statistics.
+ */
 function renderRepositoryActivity() {
   const canvas = document.querySelector<HTMLCanvasElement>("#activity-chart");
 
@@ -2577,6 +2987,7 @@ function renderRepositoryActivity() {
 
   const { labels, counts } = calculateWeeklyActivity(currentActivity);
 
+  // Chart.js instances must be destroyed before reusing the canvas.
   activityChart?.destroy();
 
   activityChart = new Chart(canvas, {
@@ -2621,7 +3032,16 @@ function renderRepositoryActivity() {
   renderContributorActivity();
 }
 
+/**
+ * Requests activity records and refreshes repository activity visualizations.
+ *
+ * @param repoPath - Repository to analyze.
+ *
+ * @remarks
+ * Increments a request identifier before starting; only the latest request may replace activity data. Clears any previous chart and catches backend errors to avoid displaying stale results.
+ */
 async function loadRepositoryActivity(repoPath: string) {
+  // Incrementing the token invalidates any activity response from an earlier load.
   const requestId = ++activityRequestId;
 
   currentActivity = [];
@@ -2633,6 +3053,7 @@ async function loadRepositoryActivity(repoPath: string) {
       repoPath,
     });
 
+    // Ignore a response if a newer repository activity request has started.
     if (requestId !== activityRequestId) return;
 
     currentActivity = commits;
@@ -2646,6 +3067,12 @@ async function loadRepositoryActivity(repoPath: string) {
 
 // -- Git Guide --
 
+/**
+ * Builds the Git Guide category and topic navigation from guide data.
+ *
+ * @remarks
+ * Creates expandable categories and clickable topic controls, then replaces their Lucide icon placeholders.
+ */
 function renderGitGuideTopics(): void {
   const container = document.querySelector<HTMLElement>("#git-guide-topics");
 
@@ -2712,6 +3139,14 @@ function renderGitGuideTopics(): void {
   });
 }
 
+/**
+ * Displays the selected educational topic and its related Git visualization.
+ *
+ * @param topic - Key identifying an explanation in the Git Guide data.
+ *
+ * @remarks
+ * Updates heading, summary, details, command, active topic styling, and the live Git areas diagram.
+ */
 function showGitExplanation(topic: keyof typeof gitExplanations): void {
   const explanation = gitExplanations[topic];
 
@@ -2743,6 +3178,14 @@ function showGitExplanation(topic: keyof typeof gitExplanations): void {
     });
 }
 
+/**
+ * Counts Git Guide working-tree changes, staged changes, and repository commits.
+ *
+ * @remarks
+ * Recursively walks the currently loaded Explorer tree. A file can count in both working and staged areas; entries excluded from the visible tree are not counted.
+ *
+ * @returns Object containing working, staged, and commit counts; commit count is null when no summary is loaded.
+ */
 function getGitAreaCounts(): {
   working: number;
   staged: number;
@@ -2754,6 +3197,7 @@ function getGitAreaCounts(): {
     commits: currentGuideSummary?.total_commits ?? null,
   };
 
+  // The guide can open before a repository has been selected.
   if (!currentGuideTree) {
     return counts;
   }
@@ -2776,6 +3220,7 @@ function getGitAreaCounts(): {
   return counts;
 }
 
+/** Creates a labeled card representing one of Git’s three areas. */
 function createGitAreaCard(
   title: string,
   description: string,
@@ -2823,6 +3268,7 @@ function createGitAreaCard(
   return card;
 }
 
+/** Creates an arrow label between Git area cards. */
 function createGitAreaArrow(
   label: string,
   active = false,
@@ -2843,6 +3289,14 @@ function createGitAreaArrow(
   return arrow;
 }
 
+/**
+ * Displays the working directory, staging area, and repository as a live educational diagram.
+ *
+ * @param visual - Optional Git operation to highlight in the diagram.
+ *
+ * @remarks
+ * Rebuilds the three area cards with counts from the current repository and highlights the selected operation. Omits the diagram when no visual is requested, and recreates its Lucide icons.
+ */
 function renderGitGuideVisual(
   visual: import("./gitGuide").GitGuideVisual | undefined,
 ): void {

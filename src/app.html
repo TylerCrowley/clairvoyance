@@ -1,3 +1,4 @@
+<!-- Application toolbar and repository controls -->
 <header class="topbar">
   <div>
     <p class="eyebrow">CLAIRVOYANCE</p>
@@ -32,7 +33,9 @@
   <span id="status" class="status">No repository selected</span>
 </header>
 
+<!-- Main workspace layout -->
 <main class="workspace">
+  <!-- Selected repository identity and Git actions -->
   <section class="panel workspace-header">
     <div class="repository-identity">
       <i data-lucide="git-branch" class="repository-identity-icon"></i>
@@ -56,7 +59,9 @@
     </div>
   </section>
 
+  <!-- Workspace panels -->
   <div class="workspace-body">
+    <!-- File explorer sidebar -->
     <aside class="panel explorer-panel">
       <div class="explorer-panel-heading sidebar-heading">
         <h3>Explorer</h3>
@@ -79,7 +84,9 @@
       </button>
     </aside>
 
+    <!-- Main content panel: file viewer and repository overview -->
     <section class="panel content-panel">
+      <!-- File viewing, editing, and staging controls -->
       <div id="file-view">
         <div class="panel-heading">
           <div>
@@ -124,12 +131,14 @@
         </div>
       </div>
 
+      <!-- Repository overview and statistics -->
       <div id="repository-overview" hidden>
         <div class="panel-heading">
           <h2>Repository Overview</h2>
         </div>
 
         <div class="overview-content">
+          <!-- Repository summary -->
           <details id="repository-summary" class="overview-section" open>
             <summary>
               <h3>Repository Summary</h3>
@@ -164,6 +173,7 @@
             </div>
           </details>
 
+          <!-- Commit history, graph, and selected commit details -->
           <details id="commit-history" class="overview-section" open>
             <summary>
               <h3>Commit History</h3>
@@ -217,6 +227,7 @@
             </div>
           </details>
 
+          <!-- Local branch management -->
           <details id="repository-branches" class="overview-section" open>
             <summary>
               <div class="branch-section-header">
@@ -238,6 +249,7 @@
             <div id="branch-list" class="branch-list"></div>
           </details>
 
+          <!-- Repository activity and contributor statistics -->
           <details id="repository-activity" class="overview-section" open>
             <summary>
               <h3>Repository Activity</h3>
@@ -272,6 +284,7 @@
       </div>
     </section>
 
+    <!-- Interactive Git Guide sidebar -->
     <aside id="git-guide-panel" class="panel git-guide-panel" hidden>
       <div class="git-guide-header sidebar-heading">
         <div class="git-guide-heading">
@@ -328,6 +341,7 @@
     </aside>
   </div>
 
+  <!-- Commit creation dialog -->
   <dialog id="commit-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h2>Commit Changes</h2>
@@ -352,6 +366,7 @@
     </div>
   </dialog>
 
+  <!-- Branch creation dialog -->
   <dialog id="create-branch-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h3>Create Branch</h3>
@@ -374,6 +389,7 @@
     </div>
   </dialog>
 
+  <!-- Branch merge dialog -->
   <dialog id="merge-branches-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <form id="merge-branches-form">
@@ -408,6 +424,7 @@
     </div>
   </dialog>
 
+  <!-- File and folder deletion confirmation -->
   <dialog id="delete-entry-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h2>Confirm Deletion</h2>
@@ -425,6 +442,7 @@
     </div>
   </dialog>
 
+  <!-- Repository initialization dialog -->
   <dialog id="init-repository-dialog" class="app-dialog">
     <div class="app-dialog-content">
       <h2>Initialize Repository</h2>
@@ -452,6 +470,7 @@
     </div>
   </dialog>
 
+  <!-- File explorer context menu -->
   <div id="explorer-context-menu" class="explorer-context-menu" hidden>
     <button type="button" data-action="new-file">
       <i data-lucide="file-plus"></i>
