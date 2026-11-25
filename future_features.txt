@@ -1,6 +1,0 @@
-Post-MVP feature ideas:
-- Remote repository functionality
-- Keyboard shortcuts
-- json enabled themes
-- Drag and drop file move
-- Table displays for CSV and similar file types

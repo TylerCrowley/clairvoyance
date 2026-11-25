@@ -1,3 +1,16 @@
+// Clairvoyance: Git Demystified
+// Copyright (C) 2026 Tyler Crowley
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This program is free software: you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation, either version 3
+// of the License, or (at your option) any later version.
+//
+// This program is distributed WITHOUT ANY WARRANTY.
+// See the LICENSE file for details.
+
 // -- Imports --
 
 use git2::{
@@ -496,7 +509,7 @@ fn read_file(repo_path: String, file_path: String) -> Result<String, String> {
     let metadata = fs::metadata(&file).map_err(|error| error.to_string())?;
 
     if metadata.len() > 2 * 1024 * 1024 {
-        return Err("File is too large to display (2 MB limit).".to_string());
+        return Err("File exceeds the 2 MiB size limit..".to_string());
     }
 
     let bytes = fs::read(&file).map_err(|e| format!("Failed to read file: {e}"))?;

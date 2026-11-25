@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "clairvoyance",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "com.tylercrowley.clairvoyance",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "clairvoyance",
+        "title": "Clairvoyance",
         "width": 800,
         "height": 600
       }
